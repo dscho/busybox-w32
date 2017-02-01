@@ -39,6 +39,13 @@
 	exit(1);							\
     }
 
+#ifdef __MINGW32__
+static int mkdir_(const char *path, int mode)
+{
+	return mkdir(path);
+}
+#define mkdir mkdir_
+#endif
 
 
 int main(int argc, const char * argv [])
