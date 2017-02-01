@@ -56,7 +56,11 @@ typedef unsigned long data_t;
 #define DATA_FMT "l"
 #else
 typedef unsigned long long data_t;
+#ifdef __MINGW32__
+#define DATA_FMT "I64"
+#else
 #define DATA_FMT "ll"
+#endif
 #endif
 
 

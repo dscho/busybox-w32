@@ -65,7 +65,11 @@ PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
 
 #if ENABLE_FEATURE_SH_MATH_64
 typedef long long arith_t;
+#ifdef __MINGW32__
+#define ARITH_FMT "%I64d"
+#else
 #define ARITH_FMT "%lld"
+#endif
 #define strto_arith_t strtoull
 #else
 typedef long arith_t;

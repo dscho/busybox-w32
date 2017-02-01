@@ -252,6 +252,12 @@ PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
 	: ((T)1 << (sizeof(T)*8-1)) \
 	)
 
+#ifdef __MINGW32__
+#define LL_FMT "I64"
+#else
+#define LL_FMT "ll"
+#endif
+
 /* Large file support */
 /* Note that CONFIG_LFS=y forces bbox to be built with all common ops
  * (stat, lseek etc) mapped to "largefile" variants by libc.
@@ -277,7 +283,7 @@ typedef unsigned long long uoff_t;
 #  define XATOOFF(a) xatoull_range((a), 0, LLONG_MAX)
 #  define BB_STRTOOFF bb_strtoull
 #  define STRTOOFF strtoull
-#  define OFF_FMT "ll"
+#  define OFF_FMT LL_FMT
 # endif
 #else
 /* CONFIG_LFS is off */

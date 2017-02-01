@@ -42,6 +42,12 @@ typedef unsigned long half_t;
 #error Cant find an integer type which is half as wide as ullong
 #endif
 
+#ifdef __MINGW32__
+#define LL_FMT "I64"
+#else
+#define LL_FMT "ll"
+#endif
+
 static half_t isqrt_odd(wide_t N)
 {
 	half_t s = isqrt(N);
@@ -161,7 +167,7 @@ static NOINLINE void factorize(wide_t N)
 	}
  end:
 	if (N > 1)
-		printf(" %llu", N);
+		printf(" %"LL_FMT"u", N);
 	bb_putchar('\n');
 }
 
@@ -175,7 +181,7 @@ static void factorize_numstr(const char *numstr)
 	N = bb_strtoull(numstr, NULL, 10);
 	if (errno)
 		bb_show_usage();
-	printf("%llu:", N);
+	printf("%"LL_FMT"u:", N);
 	factorize(N);
 }
 
