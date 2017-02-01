@@ -277,7 +277,11 @@ typedef unsigned long long uoff_t;
 #  define XATOOFF(a) xatoull_range((a), 0, LLONG_MAX)
 #  define BB_STRTOOFF bb_strtoull
 #  define STRTOOFF strtoull
-#  define OFF_FMT "ll"
+#  ifdef __MINGW32__
+#   define OFF_FMT "I64u"
+#  else
+#   define OFF_FMT "ll"
+#  endif
 # endif
 #else
 /* CONFIG_LFS is off */
