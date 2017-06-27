@@ -35,9 +35,7 @@
 # include <strings.h>
 #endif
 
-#if defined STDC_HEADERS || defined _LIBC
 # include <stdlib.h>
-#endif
 
 /* For platform which support the ISO C amendement 1 functionality we
    support user defined character classes.  */
@@ -118,10 +116,6 @@
 
 /* Avoid depending on library functions or files
    whose names are inconsistent.  */
-
-# if !defined _LIBC && !defined getenv
-extern char *getenv ();
-# endif
 
 # ifndef errno
 extern int errno;
