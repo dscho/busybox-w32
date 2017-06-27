@@ -29,11 +29,7 @@
 #if 1
 typedef unsigned long long cputime_t;
 typedef long long icputime_t;
-#ifdef __MINGW32__
-# define FMT_DATA "I64"
-#else
-# define FMT_DATA "ll"
-#endif
+# define FMT_DATA LL_FMT
 # define CPUTIME_MAX (~0ULL)
 #else
 typedef unsigned long cputime_t;

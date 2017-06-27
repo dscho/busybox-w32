@@ -16,14 +16,6 @@ You need to define the following (example):
 #define XSTR_STRTOU strtoul
 */
 
-#ifndef LL_FMT
-#ifdef __MINGW32__
-#define LL_FMT "I64"
-#else
-#define LL_FMT "ll"
-#endif
-#endif
-
 unsigned type FAST_FUNC xstrtou(_range_sfx)(const char *numstr, int base,
 		unsigned type lower,
 		unsigned type upper,
