@@ -132,7 +132,9 @@ char* FAST_FUNC INET_rresolve(struct sockaddr_in *s_in, int numeric, uint32_t ne
 		bb_error_msg("sockaddr2host_noport(%08x)", (unsigned)nip);
 #endif
 		name = xmalloc_sockaddr2host_noport((void*)s_in);
-	} else if (ENABLE_FEATURE_ETC_NETWORKS) {
+	}
+#if ENABLE_FEATURE_ETC_NETWORKS
+	else {
 		struct netent *np;
 #ifdef DEBUG
 		bb_error_msg("getnetbyaddr(%08x)", (unsigned)ntohl(nip));
@@ -141,6 +143,7 @@ char* FAST_FUNC INET_rresolve(struct sockaddr_in *s_in, int numeric, uint32_t ne
 		if (np)
 			name = xstrdup(np->n_name);
 	}
+#endif
 	if (!name)
 		name = xmalloc_sockaddr2dotted_noport((void*)s_in);
 
