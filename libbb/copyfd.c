@@ -119,8 +119,10 @@ static off_t bb_full_fd_action(int src_fd, int dst_fd, off_t size)
 	}
  out:
 
+#if CONFIG_FEATURE_COPYBUF_KB > 4
 	if (buffer_size > 4 * 1024)
 		munmap(buffer, buffer_size);
+#endif
 	return status ? -1 : total;
 }
 
