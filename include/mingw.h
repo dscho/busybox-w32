@@ -515,6 +515,7 @@ const char *get_busybox_exec_path(void);
 void init_winsock(void);
 void init_codepage(void);
 
+const char *mingw_pathconv(const char *path);
 int has_bat_suffix(const char *p);
 int has_exe_suffix(const char *p);
 int has_exe_suffix_or_dot(const char *name);
