@@ -225,6 +225,8 @@ spawnveq(int mode, const char *path, char *const *argv, char *const *env)
 		return -1;
 	}
 
+	path = mingw_pathconv(path);
+
 	while (argv[++argc])
 		;
 
