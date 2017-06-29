@@ -9434,13 +9434,15 @@ static int FAST_FUNC builtin_read(char **argv)
 	char *opt_p = NULL;
 	char *opt_t = NULL;
 	char *opt_u = NULL;
+	char *opt_d = NULL;
 	const char *ifs;
 	int read_flags;
 
 	/* "!": do not abort on errors.
 	 * Option string must start with "sr" to match BUILTIN_READ_xxx
 	 */
-	read_flags = getopt32(argv, "!srn:p:t:u:", &opt_n, &opt_p, &opt_t, &opt_u);
+	read_flags = getopt32(argv, "!srn:p:t:u:d:", &opt_n, &opt_p, &opt_t,
+		&opt_u, &opt_d);
 	if (read_flags == (uint32_t)-1)
 		return EXIT_FAILURE;
 	argv += optind;
@@ -9454,7 +9456,8 @@ static int FAST_FUNC builtin_read(char **argv)
 		opt_n,
 		opt_p,
 		opt_t,
-		opt_u
+		opt_u,
+		opt_d
 	);
 
 	if ((uintptr_t)r == 1 && errno == EINTR) {
