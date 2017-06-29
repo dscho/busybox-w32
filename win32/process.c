@@ -199,6 +199,8 @@ spawnveq(int mode, const char *path, char *const *argv, char *const *env)
 	intptr_t ret;
 	struct stat st;
 
+	path = mingw_pathconv(path);
+
 	/*
 	 * Require that the file exists, is a regular file and is executable.
 	 * It may still contain garbage but we let spawnve deal with that.
