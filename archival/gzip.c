@@ -107,6 +107,7 @@ aa:      85.1% -- replaced with aa.gz
 #include "libbb.h"
 #include "bb_archive.h"
 
+#define ffs __builtin_ffs
 
 /* ===========================================================================
  */

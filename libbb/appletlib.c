@@ -925,6 +925,7 @@ void FAST_FUNC run_applet_no_and_exit(int applet_no, char **argv)
 
 	while (argv[argc])
 		argc++;
+fprintf(stderr, "argc: %d\n", argc);
 
 	/* Reinit some shared global data */
 	xfunc_error_retval = EXIT_FAILURE;
@@ -954,6 +955,7 @@ void FAST_FUNC run_applet_no_and_exit(int applet_no, char **argv)
 	}
 	if (ENABLE_FEATURE_SUID)
 		check_suid(applet_no);
+fprintf(stderr, "applet_main[applet_no] = %p %p\n", applet_main[applet_no], ash_main);
 	xfunc_error_retval = applet_main[applet_no](argc, argv);
 	/* Note: applet_main() may also not return (die on a xfunc or such) */
 	xfunc_die();
@@ -971,6 +973,7 @@ static NORETURN void run_applet_and_exit(const char *name, char **argv)
 	/* find_applet_by_name() search is more expensive, so goes second */
 	{
 		int applet = find_applet_by_name(name);
+fprintf(stderr, "applet no: %d\n", applet);
 		if (applet >= 0)
 			run_applet_no_and_exit(applet, argv);
 	}
@@ -986,6 +989,20 @@ static NORETURN void run_applet_and_exit(const char *name, char **argv)
 
 #endif /* !defined(SINGLE_APPLET_MAIN) */
 
+#if defined(__MINGW64_VERSION_MAJOR)
+/*
+ * Disable MSVCRT command line wildcard expansion (__getmainargs called from
+ * mingw startup code, see init.c in mingw runtime).
+ */
+extern int _CRT_glob;
+
+typedef struct {
+	int newmode;
+} _startupinfo;
+
+extern int __wgetmainargs(int *argc, wchar_t ***argv, wchar_t ***env, int glob,
+		_startupinfo *si);
+#endif
 
 #if ENABLE_BUILD_LIBBUSYBOX
 int lbb_main(char **argv)
@@ -1047,6 +1064,26 @@ int main(int argc UNUSED_PARAM, char **argv)
 	if ( stderr ) {
 		_setmode(fileno(stderr), _O_BINARY);
 	}
+
+	{
+		_startupinfo si;
+		wchar_t **wargv, **wenv;
+
+		/* get wide char arguments and environment */
+		si.newmode = 0;
+		if (__wgetmainargs(&argc, &wargv, &wenv, _CRT_glob, &si) >= 0) {
+			int i;
+			for (i = 0; i < argc; i++) {
+				int size = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1,
+						NULL, 0, NULL, NULL);
+				argv[i] = malloc(size);
+				if (!argv[i])
+					bb_error_msg_and_die("Out of memory");
+				WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, argv[i], size,
+						NULL, NULL);
+			}
+		}
+	}
 #endif
 
 #if defined(SINGLE_APPLET_MAIN)
@@ -1100,6 +1137,7 @@ int main(int argc UNUSED_PARAM, char **argv)
 		}
 	}
 	applet_name = bb_basename(applet_name);
+fprintf(stderr, "applet name: %s\n", applet_name);
 	parse_config_file(); /* ...maybe, if FEATURE_SUID_CONFIG */
 	run_applet_and_exit(applet_name, argv);
 

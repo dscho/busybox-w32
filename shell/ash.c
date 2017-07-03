@@ -5742,7 +5742,11 @@ dup2_or_raise(int from, int to)
 	newfd = (from != to) ? dup2(from, to) : to;
 	if (newfd < 0) {
 		/* Happens when source fd is not open: try "echo >&99" */
+#ifdef ENABLE_PLATFORM_MINGW32
+		ash_msg_and_raise_error("%d: %s", from, strerror(errno));
+#else
 		ash_msg_and_raise_error("%d: %m", from);
+#endif
 	}
 	return newfd;
 }
@@ -6546,6 +6550,9 @@ evalbackcmd(union node *n, struct backcmd *result)
 	result->fs.n = n;
 	result->fs.fd[0] = pip[0];
 	result->fs.fd[1] = pip[1];
+fprintf(stderr, "trying to make %d inheritable: %d\n", pip[0], SetHandleInformation((HANDLE)_get_osfhandle(pip[0]), HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT));
+fprintf(stderr, "trying to make %d inheritable: %d\n", pip[1], SetHandleInformation((HANDLE)_get_osfhandle(pip[1]), HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT));
+fflush(stderr);
 	if (spawn_forkshell(jp, &result->fs, FORK_NOJOB) < 0)
 		ash_msg_and_raise_error("unable to spawn shell");
 #else
@@ -9162,6 +9169,7 @@ evaltree(union node *n, int flags)
 	int (*evalfn)(union node *, int);
 	int status = 0;
 
+fprintf(stderr, "evaltree %p\n", n);
 	if (n == NULL) {
 		TRACE(("evaltree(NULL) called\n"));
 		goto out;
@@ -14255,6 +14263,7 @@ int ash_main(int argc UNUSED_PARAM, char **argv)
 	hSIGINT = CreateEvent(NULL, TRUE, FALSE, NULL);
 	SetConsoleCtrlHandler(ctrl_handler, TRUE);
 	if (argc == 3 && !strcmp(argv[1], "--forkshell")) {
+fprintf(stderr, "forkshell init\n");
 		forkshell_init(argv[2]);
 
 		/* NOTREACHED */
@@ -14393,14 +14402,17 @@ forkshell_evalbackcmd(struct forkshell *fs)
 	union node *n = fs->n;
 	int pip[2] = {fs->fd[0], fs->fd[1]};
 
+fprintf(stderr, "evalbackcmd\n");
 	FORCE_INT_ON;
 	close(pip[0]);
 	if (pip[1] != 1) {
 		/*close(1);*/
+fprintf(stderr, "%s:%d:dup2_or_raise pip[1] = %d, %d\n", __FILE__, __LINE__, pip[1], pip[0]);
 		dup2_or_raise(pip[1], 1);
 		close(pip[1]);
 	}
 	eflag = 0;
+fprintf(stderr, "%s:%d:evaltree\n", __FILE__, __LINE__);
 	evaltree(n, EV_EXIT); /* actually evaltreenr... */
 	/* NOTREACHED */
 }
@@ -14411,6 +14423,7 @@ forkshell_evalsubshell(struct forkshell *fs)
 	union node *n = fs->n;
 	int flags = fs->flags;
 
+fprintf(stderr, "evalsubshell\n");
 	TRACE(("ash: subshell: %s\n",__PRETTY_FUNCTION__));
 	INT_ON;
 	flags |= EV_EXIT;
@@ -14428,6 +14441,7 @@ forkshell_evalpipe(struct forkshell *fs)
 	int prevfd = fs->fd[2];
 	int pip[2] = {fs->fd[0], fs->fd[1]};
 
+fprintf(stderr, "%s:%d:evalpipe\n", __FILE__, __LINE__);
 	TRACE(("ash: subshell: %s\n",__PRETTY_FUNCTION__));
 	INT_ON;
 	if (pip[1] >= 0) {
@@ -14452,6 +14466,7 @@ forkshell_shellexec(struct forkshell *fs)
 	char **argv = fs->argv;
 	char *path = fs->string;
 
+fprintf(stderr, "%s:%d:evalpipe\n", __FILE__, __LINE__);
 	listsetvar(varlist, VEXPORT|VSTACK);
 	shellexec(argv[0], argv, path, idx);
 }
@@ -14459,6 +14474,7 @@ forkshell_shellexec(struct forkshell *fs)
 static void
 forkshell_child(struct forkshell *fs)
 {
+fprintf(stderr, "%s:%d:forkshell_child %d\n", __FILE__, __LINE__, (int)fs->fpid);
 	switch ( fs->fpid ) {
 	case FS_OPENHERE:
 		forkshell_openhere(fs);
@@ -14982,8 +14998,10 @@ forkshell_init(const char *idstr)
 
 	CLEAR_RANDOM_T(&random_gen); /* or else $RANDOM repeats in child */
 
+fprintf(stderr, "reinitvar\n");
 	reinitvar();
 
+fprintf(stderr, "forkshell_child\n");
 	forkshell_child(fs);
 }
 

@@ -1,6 +1,199 @@
 #include "libbb.h"
 #include <tlhelp32.h>
 
+static int xutftowcs(wchar_t *out, const char *in, size_t out_alloc)
+{
+	int ret = MultiByteToWideChar(CP_UTF8, 0, in, -1, out, out_alloc);
+	return ret ? ret : -1;
+}
+
+wchar_t *make_environment_block(char *const *env);
+wchar_t *make_environment_block(char *const *env)
+{
+	wchar_t *ret;
+	size_t size = 1;
+	char *const *p;
+	wchar_t *w;
+
+	for (p = env; *p; p++)
+		size += MultiByteToWideChar(CP_UTF8, 0, *p, -1, NULL, 0);
+	ret = malloc(size * sizeof(wchar_t));
+	w = ret;
+	for (p = env; *p; p++)
+		w += MultiByteToWideChar(CP_UTF8, 0, *p, -1, w, size);
+	*w = L'\0';
+	return ret;
+}
+
+static intptr_t mingw_spawnve(int mode,
+		const char *cmd, char *const *argv, char *const *env)
+{
+#if 0
+	static int atexit_handler_initialized;
+#endif
+	STARTUPINFOW si;
+	PROCESS_INFORMATION pi;
+#define MAX_CMDLINE 32768
+	wchar_t wcmd[MAX_PATH], /* wdir[MAX_PATH], */ wargs[MAX_CMDLINE];
+	wchar_t *wenvblk = NULL;
+	unsigned flags = CREATE_UNICODE_ENVIRONMENT;
+	BOOL ret;
+	HANDLE cons;
+	int i;
+
+#if 0
+	if (!atexit_handler_initialized) {
+		atexit_handler_initialized = 1;
+		/*
+		 * On Windows, there is no POSIX signaling. Instead, we inject
+		 * a thread calling ExitProcess(128 + sig_no); and that calls
+		 * the *atexit* handlers. Catch this condition and kill child
+		 * processes with the same signal.
+		 */
+		atexit(kill_child_processes_on_signal);
+	}
+#endif
+
+	/* Determine whether or not we are associated to a console */
+	cons = CreateFile("CONOUT$", GENERIC_WRITE,
+			FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL, NULL);
+	if (cons == INVALID_HANDLE_VALUE) {
+		/* There is no console associated with this process.
+		 * Since the child is a console process, Windows
+		 * would normally create a console window. But
+		 * since we'll be redirecting std streams, we do
+		 * not need the console.
+		 * It is necessary to use DETACHED_PROCESS
+		 * instead of CREATE_NO_WINDOW to make ssh
+		 * recognize that it has no console.
+		 */
+		flags |= DETACHED_PROCESS;
+	} else {
+		/* There is already a console. If we specified
+		 * DETACHED_PROCESS here, too, Windows would
+		 * disassociate the child from the console.
+		 * The same is true for CREATE_NO_WINDOW.
+		 * Go figure!
+		 */
+		CloseHandle(cons);
+	}
+	memset(&si, 0, sizeof(si));
+	si.cb = sizeof(si);
+#if 1
+	si.dwFlags = STARTF_USESTDHANDLES;
+	si.hStdInput = (HANDLE)_get_osfhandle(0);
+	si.hStdOutput = (HANDLE)_get_osfhandle(1);
+	si.hStdError = (HANDLE)_get_osfhandle(2);
+#endif
+
+	/* executables and the current directory don't support long paths */
+	if (*argv && !strcmp(cmd, *argv))
+		wcmd[0] = L'\0';
+	else if (xutftowcs(wcmd, cmd, MAX_PATH) < 0)
+		return -1;
+
+#if 0
+	/* concatenate argv */
+	for (i = 0; i < MAX_CMDLINE - 1 && *argv; argv++) {
+		wargs[i - 1] = L' ';
+		i += xutftowcs(wargs + i, *argv, MAX_CMDLINE - i);
+	}
+
+	wenvblk = make_environment_block(env);
+#endif
+
+if (1) {
+	wchar_t **wargv, **wenv;
+
+	if (!argv)
+		wargv = NULL;
+	else {
+		for (i = 0; argv[i]; i++)
+			; /* do nothing */
+		wargv = malloc((i + 1) * sizeof(wchar_t *));
+		wargv[i] = NULL;
+		for (i = 0; argv[i]; i++) {
+			int size = MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, NULL, 0);
+			wargv[i] = malloc(size * sizeof(wchar_t));
+			MultiByteToWideChar(CP_UTF8, 0, argv[i], -1, wargv[i], size);
+		}
+	}
+
+	if (!env)
+		wenv = NULL;
+	else {
+		size_t size = 0, count = 1;
+		wchar_t **w0, *w1;
+
+		for (i = 0; env[i]; i++) {
+			count++;
+			size += MultiByteToWideChar(CP_UTF8, 0, env[i], -1, NULL, 0);
+		}
+		wenv = malloc(count * sizeof(wchar_t *) + size * sizeof(wchar_t));
+		w0 = wenv;
+		w1 = (void *)(w0 + count);
+		for (i = 0; env[i]; i++) {
+			*(w0++) = w1;
+			w1 += MultiByteToWideChar(CP_UTF8, 0, env[i], -1, w1, size);
+		}
+		*w0 = NULL;
+	}
+
+	return _wspawnve(mode, *wcmd ? wcmd : NULL, (const wchar_t *const *)wargv, (const wchar_t *const *)wenv); 
+}
+	memset(&pi, 0, sizeof(pi));
+	ret = CreateProcessW(*wcmd ? wcmd : NULL, wargs, NULL, NULL, TRUE,
+		flags, wenvblk, NULL, &si, &pi);
+
+	free(wenvblk);
+
+	if (!ret) {
+		errno = ENOENT;
+		return -1;
+	}
+	CloseHandle(pi.hThread);
+
+#if 0
+	/*
+	 * The process ID is the human-readable identifier of the process
+	 * that we want to present in log and error messages. The handle
+	 * is not useful for this purpose. But we cannot close it, either,
+	 * because it is not possible to turn a process ID into a process
+	 * handle after the process terminated.
+	 * Keep the handle in a list for waitpid.
+	 */
+	EnterCriticalSection(&pinfo_cs);
+	{
+		struct pinfo_t *info = xmalloc(sizeof(struct pinfo_t));
+		info->pid = pi.dwProcessId;
+		info->proc = pi.hProcess;
+		info->next = pinfo;
+		pinfo = info;
+	}
+	LeaveCriticalSection(&pinfo_cs);
+#endif
+
+//fprintf(stderr, "mode: %d (_P_WAIT=%d, _P_NOWAIT=%d)\n", mode, _P_WAIT, _P_NOWAIT);
+	if (mode == _P_WAIT) {
+		int status, r;
+//fprintf(stderr, "_P_WAIT\n");
+		r = _cwait(&status, (intptr_t)pi.hProcess, 0);
+//fprintf(stderr, "_cwait returned %d, %d\n", (int)r, (int)status);
+#if 0
+		if (r >= 0)
+			GetExitCodeProcess(pi.hProcess, status);
+#endif
+		CloseHandle(pi.hProcess);
+//fprintf(stderr, "closed handle\n");
+		return r < 0 ? -1 : status;
+	}
+
+	return (intptr_t)pi.hProcess;
+}
+
+#define spawnve mingw_spawnve
+
 int waitpid(pid_t pid, int *status, int options)
 {
 	HANDLE proc;
