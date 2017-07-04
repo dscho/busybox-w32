@@ -2925,6 +2925,7 @@ updatepwd(const char *dir)
 
 	cdcomppath = sstrdup(dir);
 	STARTSTACKSTR(new);
+<<<<<<< HEAD
 
 	/* prefix new path with current directory, if required */
 	if (other_relpath) {
@@ -2937,7 +2938,7 @@ updatepwd(const char *dir)
 	}
 	else if (curr_relpath || (is_root(dir) && unc_root_len(curdir))) {
 		/* relative path on current drive or explicit root of UNC curdir */
-		if (curdir == nullstr)
+		if (curdir == nullstr || *dir == '/')
 			return 0;
 		new = stack_putstr(curdir, new);
 	}
