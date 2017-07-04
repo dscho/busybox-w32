@@ -93,6 +93,9 @@ static wchar_t *pathconv_rest(wchar_t *result, int offset, const char *path)
 			*(q++) = *p;
 	*q = L'\0';
 
+if (getenv("PATHCONV_TRACE"))
+fprintf(stderr, "%s:%d: finished pathconv to '%S'\n",
+		__FILE__, __LINE__, result);
 
 	return result;
 }
@@ -108,6 +111,10 @@ wchar_t *mingw_pathconv(const char *path)
 
 	if (!path)
 		return NULL;
+
+if (getenv("PATHCONV_TRACE"))
+	fprintf(stderr, "%s:%d: start pathconv of '%s'\n",
+			__FILE__, __LINE__, path);
 
 	if (next >= MAX_CONCURRENT_PATHCONV)
 		next = 0;
@@ -211,6 +218,9 @@ wchar_t *mingw_pathconv(const char *path)
 			len -= 4;
 		}
 
+if (getenv("PATHCONV_TRACE"))
+	fprintf(stderr, "%s:%d: exec_path: '%s'\n",
+			__FILE__, __LINE__, exec_path);
 		if (len > 5 && !_strnicmp(exec_path + len - 4, ".exe", 4)) {
 			len -= 3;
 			while (--len && !is_dir_sep(exec_path[len]))
@@ -247,6 +257,9 @@ wchar_t *mingw_pathconv(const char *path)
 		if (pseudo_root_len + 1 < PATH_MAX_LONG &&
 				pseudo_root[pseudo_root_len - 1] != L'\\')
 			pseudo_root[pseudo_root_len++] = L'\\';
+if (getenv("PATHCONV_TRACE"))
+	fprintf(stderr, "%s:%d: pseudo_root: '%.*S'\n",
+			__FILE__, __LINE__, pseudo_root_len, pseudo_root);
 	}
 
 	memcpy(result, pseudo_root, pseudo_root_len * sizeof(wchar_t));
