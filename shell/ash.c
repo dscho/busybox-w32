@@ -3826,7 +3826,7 @@ static void
 xtcsetpgrp(int fd, pid_t pgrp)
 {
 	if (tcsetpgrp(fd, pgrp))
-		ash_msg_and_raise_error("can't set tty process group (%m)");
+		ash_perror_msg_and_raise_error("can't set tty process group");
 }
 
 /*
@@ -5359,7 +5359,7 @@ savefd(int from)
 	err = newfd < 0 ? errno : 0;
 	if (err != EBADF) {
 		if (err)
-			ash_msg_and_raise_error("%d: %m", from);
+			ash_perror_msg_and_raise_error("%d", from);
 		close(from);
 		fcntl(newfd, F_SETFD, FD_CLOEXEC);
 	}
@@ -5374,7 +5374,7 @@ dup2_or_raise(int from, int to)
 	newfd = (from != to) ? dup2(from, to) : to;
 	if (newfd < 0) {
 		/* Happens when source fd is not open: try "echo >&99" */
-		ash_msg_and_raise_error("%d: %m", from);
+		ash_perror_msg_and_raise_error("%d", from);
 	}
 	return newfd;
 }
@@ -5505,7 +5505,7 @@ redirect(union node *redir, int flags)
 			/* "echo >&10" and 10 is a fd opened to a sh script? */
 			if (is_hidden_fd(sv, right_fd)) {
 				errno = EBADF; /* as if it is closed */
-				ash_msg_and_raise_error("%d: %m", right_fd);
+				ash_perror_msg_and_raise_error("%d", right_fd);
 			}
 			newfd = -1;
 		} else {
@@ -5539,7 +5539,7 @@ redirect(union node *redir, int flags)
 					if (newfd >= 0)
 						close(newfd);
 					errno = i;
-					ash_msg_and_raise_error("%d: %m", fd);
+					ash_perror_msg_and_raise_error("%d", fd);
 					/* NOTREACHED */
 				}
 				/* EBADF: it is not open - good, remember to close it */
