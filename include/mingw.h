@@ -533,6 +533,9 @@ int mingw_execve(const char *cmd, char *const *argv, char *const *envp);
 #define execve mingw_execve
 #define execv mingw_execv
 
+int mingw_chdir(const char *path);
+#define chdir mingw_chdir
+
 #define has_dos_drive_prefix(path) (isalpha(*(path)) && (path)[1] == ':')
 
 int kill_SIGTERM_by_handle(HANDLE process);
