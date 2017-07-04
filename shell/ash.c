@@ -3074,6 +3074,8 @@ updatepwd(const char *dir)
 
 	cdcomppath = sstrdup(dir);
 	STARTSTACKSTR(new);
+	if (!target == ABS_DRIVE && is_path_sep(*dir))
+		return 0;
 
 	switch (target) {
 	case REL_OTHER:
