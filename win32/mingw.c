@@ -1768,6 +1768,74 @@ size_t FAST_FUNC remove_cr(char *p, size_t len)
 	return j;
 }
 
+#undef opendir
+DIR *mingw_opendir(const char *path)
+{
+	char buf[MAX_PATH];
+	size_t path_len;
+	DIR *ret;
+
+	strcpy(buf, mingw_pathconv(path));
+	if (isalpha(buf[0]) && buf[1] == ':' && buf[2] == '\0') {
+		buf[2] = '/';
+		buf[3] = '\0';
+	}
+
+	path_len = strlen(buf);
+	if (path_len && buf[path_len - 1] == '\\')
+		path_len--;
+	if (path_len + 3 >= PATH_MAX) {
+		errno = ENAMETOOLONG;
+		return NULL;
+	}
+	strcpy(buf + path_len, "\\*");
+
+	ret = malloc(sizeof(*ret));
+	if (!ret) {
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	ret->handle = FindFirstFile(buf, &ret->find_data);
+	if (ret->handle == INVALID_HANDLE_VALUE) {
+		if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+			free(ret);
+			errno = ENOENT;
+			return NULL;
+		}
+		ret->find_data.cFileName[0] = '\0';
+	}
+
+	return ret;
+}
+
+#undef readdir
+struct dirent *mingw_readdir(DIR *dir)
+{
+	if (!dir->find_data.cFileName[0])
+		return NULL;
+
+	safe_strncpy(dir->dirent.d_name, dir->find_data.cFileName, PATH_MAX);
+	if (!FindNextFile(dir->handle, &dir->find_data))
+		dir->find_data.cFileName[0] = '\0';
+
+	return &dir->dirent;
+}
+
+#undef closedir
+int mingw_closedir(DIR *dir)
+{
+	int ret = 0;
+
+	if (!FindClose(dir->handle)) {
+		errno = EBADF;
+		ret = -1;
+	}
+	free(dir);
+
+	return ret;
+}
+
 off_t mingw_lseek(int fd, off_t offset, int whence)
 {
 	HANDLE h = (HANDLE)_get_osfhandle(fd);
