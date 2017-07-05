@@ -137,6 +137,14 @@ static intptr_t mingw_spawnve(int mode,
 		return -1;
 	}
 
+if (getenv("SPAWNVE_TRACE")) {
+	int i;
+	fprintf(stderr, "_wspawnve called with '%S', argv:", wcmd);
+	for (i = 0; wargv[i]; i++)
+		fprintf(stderr, " '%S'", wargv[i]);
+	fprintf(stderr, "\n"); fflush(stderr);
+}
+
 	/*
 	 * When /bin/<command> does not exist, and <command> is an applet,
 	 * run that applet instead.
