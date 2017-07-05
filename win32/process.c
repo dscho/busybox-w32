@@ -481,12 +481,16 @@ spawnveq(int mode, const char *path, char *const *argv, char *const *env)
 	}
 
 	quote_arg = is_msys2_cmd(path) ? quote_arg_msys2 : quote_arg_mingw;
+if (getenv("DEBUG_QUOTING")) { fprintf(stderr, "'%s' is MSYS2: %d\n", path, quote_arg == quote_arg_msys2); fflush(stderr); }
 	while (argv[argc])
 		argc++;
 
 	new_argv = malloc(sizeof(*argv)*(argc+1));
 	for (i = 0;i < argc;i++)
+{
 		new_argv[i] = quote_arg(argv[i]);
+if (getenv("DEBUG_QUOTING")) { fprintf(stderr, "quoted arg #%d '%s' to '%s'\n", i, argv[i], new_argv[i]); fflush(stderr); }
+}
 	new_argv[argc] = NULL;
 	ret = mingw_spawnve(mode, path, new_argv, env);
 	for (i = 0;i < argc;i++)
