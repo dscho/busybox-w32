@@ -193,12 +193,15 @@ extern struct lineedit_statics *const lineedit_ptr_to_statics;
 #define newdelflag       (S.newdelflag      )
 #define delbuf           (S.delbuf          )
 
+static int S_initialized;
+
 #define INIT_S() do { \
 	(*(struct lineedit_statics**)&lineedit_ptr_to_statics) = xzalloc(sizeof(S)); \
 	barrier(); \
 	cmdedit_termw = 80; \
 	IF_USERNAME_OR_HOMEDIR(home_pwd_buf = (char*)null_str;) \
 	IF_FEATURE_EDITING_VI(delptr = delbuf;) \
+	S_initialized = 1; \
 } while (0)
 
 static void deinit_S(void)
@@ -214,6 +217,7 @@ static void deinit_S(void)
 		free(home_pwd_buf);
 #endif
 	free(lineedit_ptr_to_statics);
+	S_initialized = 0;
 }
 #define DEINIT_S() deinit_S()
 
@@ -1897,16 +1901,15 @@ static inline char *current_nanosecond(void)
 
 /* Called just once at read_line_input() init time */
 #if !ENABLE_FEATURE_EDITING_FANCY_PROMPT
-static void parse_and_put_prompt(const char *prmt_ptr)
+const char *expand_prompt(const char *prmt_ptr, unsigned *len)
 {
 	const char *p;
-	cmdedit_prompt = prmt_ptr;
 	p = strrchr(prmt_ptr, '\n');
-	cmdedit_prmt_len = unicode_strwidth(p ? p+1 : prmt_ptr);
-	put_prompt();
+	*len = unicode_strwidth(p ? p+1 : prmt_ptr);
+	return prmt_ptr;
 }
 #else
-static void parse_and_put_prompt(const char *prmt_ptr)
+const char *expand_prompt(const char *prmt_ptr, unsigned *len)
 {
 	int prmt_size = 0;
 	char *prmt_mem_ptr = xzalloc(1);
@@ -1916,7 +1919,10 @@ static void parse_and_put_prompt(const char *prmt_ptr)
 	char flg_not_length = '[';
 	char cbuf[2];
 
-	/*cmdedit_prmt_len = 0; - already is */
+	if (!S_initialized)
+		INIT_S();
+
+	/* *len = 0; - already is */
 
 	cbuf[1] = '\0'; /* never changes */
 
@@ -2082,14 +2088,14 @@ static void parse_and_put_prompt(const char *prmt_ptr)
 			int n = strlen(pbuf);
 			prmt_size += n;
 			if (c == '\n')
-				cmdedit_prmt_len = 0;
+				*len = 0;
 			else if (flg_not_length != ']') {
 #if 0 /*ENABLE_UNICODE_SUPPORT*/
 /* Won't work, pbuf is one BYTE string here instead of an one Unicode char string. */
 /* FIXME */
-				cmdedit_prmt_len += unicode_strwidth(pbuf);
+				*len += unicode_strwidth(pbuf);
 #else
-				cmdedit_prmt_len += n;
+				*len += n;
 #endif
 			}
 		}
@@ -2101,10 +2107,15 @@ static void parse_and_put_prompt(const char *prmt_ptr)
 	if (cwd_buf != (char *)bb_msg_unknown)
 		free(cwd_buf);
 # endif
-	cmdedit_prompt = prmt_mem_ptr;
+#endif
+	return prmt_mem_ptr;
+}
+
+static void parse_and_put_prompt(const char *prmt_ptr)
+{
+	cmdedit_prompt = expand_prompt(prmt_ptr, &cmdedit_prmt_len);
 	put_prompt();
 }
-#endif
 
 static void cmdedit_setwidth(void)
 {
@@ -2399,6 +2410,8 @@ int FAST_FUNC read_line_input(line_input_t *st, const char *prompt, char *comman
 	struct termios new_settings;
 	char read_key_buffer[KEYCODE_BUFFER_SIZE];
 
+	if (S_initialized)
+		DEINIT_S();
 	INIT_S();
 
 #if ENABLE_PLATFORM_MINGW32
