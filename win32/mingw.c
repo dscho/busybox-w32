@@ -929,7 +929,13 @@ char *mingw_getcwd(char *pointer, int len)
 	char *ret = getcwd(pointer, len);
 	if (!ret)
 		return ret;
-	convert_slashes(ret);
+	if (strncmp(ret, "\\\\?\\", 4))
+		convert_slashes(ret);
+	else {
+		for (i = 0; ret[i + 4]; i++)
+			ret[i] = ret[i + 4] == '\\' ? '/' : ret[i + 4];
+		ret[i] = '\0';
+	}
 	return ret;
 }
 
