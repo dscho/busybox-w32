@@ -1061,7 +1061,12 @@ char *mingw_getcwd(char *pointer, int len)
 	char *ret = getcwd(pointer, len);
 	if (!ret)
 		return ret;
-	bs_to_slash(ret);
+	if (!strncmp(ret, "\\\\?\\", 4)) {
+		for (i = 0; ret[i + 4]; i++)
+			ret[i] = ret[i + 4] == '\\' ? '/' : ret[i + 4];
+		ret[i] = '\0';
+	} else
+		bs_to_slash(ret);
 	return ret;
 }
 
