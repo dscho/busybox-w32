@@ -551,3 +551,4 @@ int chdir_system_drive(void);
 char *xabsolute_path(char *path);
 char *get_drive_cwd(const char *path, char *buffer, int size);
 void fix_path_case(char *path);
+void initialize_critical_sections(void);
