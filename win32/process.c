@@ -32,6 +32,90 @@ static wchar_t **argv_to_wargv(char *const *argv)
 	return wargv;
 }
 
+static struct {
+	CRITICAL_SECTION mutex;
+	int nr, alloc;
+	HANDLE *h;
+} spawned_processes;
+
+#ifndef SIGRTMAX
+#define SIGRTMAX 63
+#endif
+
+static void kill_spawned_processes_on_signal(void)
+{
+        DWORD status;
+	int i, signal;
+
+	/*
+	 * Only continue if the process was terminated by a signal, as
+	 * indicated by the exit status (128 + sig_no).
+	 *
+	 * As we are running in an atexit() handler, the exit code has been
+	 * set at this stage by the ExitProcess() function already.
+	 */
+	if (!GetExitCodeProcess(GetCurrentProcess(), &status) ||
+			status <= 128 || status > 128 + SIGRTMAX)
+		return;
+	signal = status - 128;
+
+	EnterCriticalSection(&spawned_processes.mutex);
+	for (i = 0; i < spawned_processes.nr; i++) {
+		if (GetExitCodeProcess(spawned_processes.h[i], &status) &&
+				status == STILL_ACTIVE)
+			kill_SIGTERM_by_handle(spawned_processes.h[i],
+					       128 + signal);
+		CloseHandle(spawned_processes.h[i]);
+	}
+	spawned_processes.nr = 0;
+	LeaveCriticalSection(&spawned_processes.mutex);
+}
+
+static void cull_exited_processes(void)
+{
+	DWORD status;
+	int i;
+
+	EnterCriticalSection(&spawned_processes.mutex);
+	/* cull exited processes */
+	for (i = 0; i < spawned_processes.nr; i++)
+		if (GetExitCodeProcess(spawned_processes.h[i], &status) &&
+				status != STILL_ACTIVE) {
+			CloseHandle(spawned_processes.h[i]);
+			spawned_processes.h[i] =
+				spawned_processes.h[--spawned_processes.nr];
+			i--;
+		}
+	LeaveCriticalSection(&spawned_processes.mutex);
+}
+
+static void exit_process_on_signal(HANDLE process)
+{
+	cull_exited_processes();
+	EnterCriticalSection(&spawned_processes.mutex);
+	/* grow array if necessary */
+	if (spawned_processes.nr == spawned_processes.alloc) {
+		int new_alloc = (spawned_processes.alloc + 8) * 3 / 2;
+		HANDLE *new_h = realloc(spawned_processes.h,
+				new_alloc * sizeof(HANDLE));
+		if (!new_h) {
+			LeaveCriticalSection(&spawned_processes.mutex);
+			return; /* punt */
+		}
+		spawned_processes.h = new_h;
+		spawned_processes.alloc = new_alloc;
+	}
+
+	spawned_processes.h[spawned_processes.nr++] = process;
+	LeaveCriticalSection(&spawned_processes.mutex);
+}
+
+void initialize_critical_sections(void)
+{
+	InitializeCriticalSection(&spawned_processes.mutex);
+	atexit(kill_spawned_processes_on_signal);
+}
+
 static intptr_t mingw_spawnve(int mode,
 		const char *cmd, char *const *argv, char *const *env)
 {
@@ -46,13 +130,36 @@ static intptr_t mingw_spawnve(int mode,
 		return -1;
 	}
 
-	ret = _wspawnve(mode, wcmd,
+	/*
+	 * We cannot use _P_WAIT here because we need to kill spawned processes
+	 * if we're killed, and _P_WAIT does not let us.
+	 */
+	ret = _wspawnve(_P_NOWAIT, wcmd,
 		(const wchar_t *const *)wargv, (const wchar_t *const *)wenv);
+
+	if (ret != (intptr_t)-1)
+		exit_process_on_signal((HANDLE)ret);
 
 	free(wargv);
 	free(wenv);
 
-	return ret;
+	if (ret == (intptr_t)-1 || mode != _P_WAIT)
+		return ret;
+
+	for (;;) {
+		DWORD exit_code;
+		WaitForSingleObject((HANDLE)ret, INFINITE);
+		if (!GetExitCodeProcess((HANDLE)ret, &exit_code)) {
+			errno = err_win_to_posix();
+			CloseHandle((HANDLE)ret);
+			return -1;
+		}
+		if (exit_code != STILL_ACTIVE) {
+			cull_exited_processes();
+			CloseHandle((HANDLE)ret);
+			return (intptr_t)exit_code;
+		}
+	}
 }
 
 pid_t waitpid(pid_t pid, int *status, int options)
@@ -837,6 +944,7 @@ int kill_SIGTERM_by_handle(HANDLE process)
 	DWORD code;
 	int ret = 0;
 
+	cull_exited_processes();
 	if (GetExitCodeProcess(process, &code) && code == STILL_ACTIVE) {
 		DECLARE_PROC_ADDR(DWORD, ExitProcess, LPVOID);
 		PVOID arg = (PVOID)(intptr_t)(128 + SIGTERM);

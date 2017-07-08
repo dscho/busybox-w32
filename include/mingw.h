@@ -586,3 +586,5 @@ void make_sparse(int fd, off_t start, off_t end);
 int skip_ansi_emulation(int reset);
 int unix_path(const char *path);
 int has_path(const char *file);
+
+void initialize_critical_sections(void);
