@@ -587,3 +587,5 @@ int skip_ansi_emulation(int reset);
 int unix_path(const char *path);
 int has_path(const char *file);
 int is_absolute_path(const char *path);
+
+void initialize_critical_sections(void);
