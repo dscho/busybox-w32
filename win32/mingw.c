@@ -1538,6 +1538,14 @@ int mingw_chdir(const char *dirname)
 
 #if 0
 	// TODO
+	/*
+	 * First, try with the non-prefixed path: among other executables,
+	 * cmd.exe cannot be started with the current directory set to
+	 * a \\?\-prefixed path.
+	 */
+	if (!wcsncmp(wpath, L"\\\\?\\", 4) && !_wchdir(wpath + 4))
+		return 0;
+
 	if (_wchdir(wpath)) {
 		wchar_t shortpath[PATH_MAX_LONG];
 		int saved_errno = errno;
