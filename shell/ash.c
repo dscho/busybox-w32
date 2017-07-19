@@ -1200,7 +1200,7 @@ showtree(union node *n)
 /* ============ Parser data */
 
 /*
- * ash_vmsg() needs parsefile->fd, hence parsefile definition is moved up.
+ * ash_verror_msg() needs parsefile->fd, hence parsefile definition is moved up.
  */
 struct strlist {
 	struct strlist *next;
@@ -1253,7 +1253,7 @@ static struct strlist *cmdenviron;     /* environment for builtin command */
 /* ============ Message printing */
 
 static void
-ash_vmsg(const char *msg, va_list ap)
+ash_verror_msg(const char *msg, va_list ap, const char *strerr)
 {
 	fprintf(stderr, "%s: ", arg0);
 	if (commandname) {
@@ -1263,6 +1263,8 @@ ash_vmsg(const char *msg, va_list ap)
 			fprintf(stderr, "line %d: ", startlinno);
 	}
 	vfprintf(stderr, msg, ap);
+	if (strerr)
+		fprintf(stderr, ": %s", strerr);
 	newline_and_flush(stderr);
 }
 
@@ -1271,19 +1273,20 @@ ash_vmsg(const char *msg, va_list ap)
  * is not NULL then error prints an error message using printf style
  * formatting.  It then raises the error exception.
  */
-static void ash_vmsg_and_raise(int, const char *, va_list) NORETURN;
-static void
-ash_vmsg_and_raise(int cond, const char *msg, va_list ap)
+static void ash_verror_msg_and_raise(int, const char *, va_list, const char *)
+	NORETURN;
+static void ash_verror_msg_and_raise(int cond, const char *msg, va_list ap,
+	const char *strerr)
 {
 #if DEBUG
 	if (msg) {
-		TRACE(("ash_vmsg_and_raise(%d):", cond));
+		TRACE(("ash_verror_msg_and_raise(%d):", cond));
 		TRACEV((msg, ap));
 	} else
-		TRACE(("ash_vmsg_and_raise(%d):NULL\n", cond));
+		TRACE(("ash_verror_msg_and_raise(%d):NULL\n", cond));
 	if (msg)
 #endif
-		ash_vmsg(msg, ap);
+		ash_verror_msg(msg, ap, strerr);
 
 	flush_stdout_stderr();
 	raise_exception(cond);
@@ -1299,7 +1302,21 @@ ash_msg_and_raise_error(const char *msg, ...)
 	exitstatus = 2;
 
 	va_start(ap, msg);
-	ash_vmsg_and_raise(EXERROR, msg, ap);
+	ash_verror_msg_and_raise(EXERROR, msg, ap, NULL);
+	/* NOTREACHED */
+	va_end(ap);
+}
+
+static void ash_perror_msg_and_raise_error(const char *, ...) NORETURN;
+static void
+ash_perror_msg_and_raise_error(const char *msg, ...)
+{
+	va_list ap;
+
+	exitstatus = 2;
+
+	va_start(ap, msg);
+	ash_verror_msg_and_raise(EXERROR, msg, ap, errno ? strerror(errno) : NULL);
 	/* NOTREACHED */
 	va_end(ap);
 }
@@ -1319,7 +1336,7 @@ ash_msg_and_raise(int cond, const char *msg, ...)
 	va_list ap;
 
 	va_start(ap, msg);
-	ash_vmsg_and_raise(cond, msg, ap);
+	ash_verror_msg_and_raise(cond, msg, ap, NULL);
 	/* NOTREACHED */
 	va_end(ap);
 }
@@ -1333,7 +1350,7 @@ ash_msg(const char *fmt, ...)
 	va_list ap;
 
 	va_start(ap, fmt);
-	ash_vmsg(fmt, ap);
+	ash_verror_msg(fmt, ap, NULL);
 	va_end(ap);
 }
 
