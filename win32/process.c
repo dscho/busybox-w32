@@ -45,6 +45,21 @@ static intptr_t mingw_spawnve(int mode,
 		return -1;
 	}
 
+	/*
+	 * It can be easily verified that _wspawnve() has no problems with a
+	 * wcmd that has the \\?\ prefix and it may be a long path.
+	 *
+	 * However, some programs inspect their own absolute path, e.g. to
+	 * infer the location of related files (think: git.exe and its exec
+	 * path), and not all of these programs handle a \\?\ prefix well, e.g.
+	 * MSYS2's gdb (MINGW version).
+	 *
+	 * So let's skip the prefix when possible (i.e. when the path fits
+	 * within PATH_MAX minus some wiggling room).
+	 */
+	if (!wcsncmp(wcmd, L"\\\\?\\", 4) && wcslen(wcmd) < PATH_MAX)
+		wcmd += 4;
+
 	ret = _wspawnve(mode, wcmd,
 		(const wchar_t *const *)wargv, (const wchar_t *const *)wenv);
 
