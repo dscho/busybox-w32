@@ -10182,9 +10182,14 @@ evalcommand(union node *cmd, int flags)
 	/* Print the command if xflag is set. */
 	if (xflag) {
 		int n;
-		const char *p = " %s" + 1;
+		const char *p = " %s" + 1, *prompt;
+		unsigned len = 0;
 
-		fdprintf(preverrout_fd, p, expandstr(ps4val()));
+		prompt = expand_prompt(expandstr(ps4val()), &len);
+		write(preverrout_fd, prompt, len);
+#if ENABLE_FEATURE_EDITING_FANCY_PROMPT
+		free((char *)prompt);
+#endif
 		sp = varlist.list;
 		for (n = 0; n < 2; n++) {
 			while (sp) {
