@@ -65,14 +65,14 @@ CFLAGS += $(call cc-option,-fno-builtin-printf,)
 #CFLAGS += $(call cc-option,-Wconversion,)
 
 ifneq ($(CONFIG_DEBUG),y)
-CFLAGS += $(call cc-option,-Os,$(call cc-option,-O2,))
+#CFLAGS += $(call cc-option,-Os,$(call cc-option,-O2,))
 else
 CFLAGS += $(call cc-option,-g,)
 #CFLAGS += "-D_FORTIFY_SOURCE=2"
 ifeq ($(CONFIG_DEBUG_PESSIMIZE),y)
-CFLAGS += $(call cc-option,-O0,)
+#CFLAGS += $(call cc-option,-O0,)
 else
-CFLAGS += $(call cc-option,-Os,$(call cc-option,-O2,))
+#CFLAGS += $(call cc-option,-Os,$(call cc-option,-O2,))
 endif
 endif
 ifeq ($(CONFIG_DEBUG_SANITIZE),y)

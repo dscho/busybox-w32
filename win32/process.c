@@ -129,6 +129,7 @@ static intptr_t mingw_spawnve(int mode,
 	wchar_t *wcmd, **wargv, **wenv;
 	intptr_t ret;
 
+if (!strncmp(cmd, "/bin/", 5) && !strcmp(argv[0], "/bin/sh")) argv++; /* TO-UNDO!!! */
 	wcmd = mingw_pathconv(cmd);
 	wargv = argv_to_wargv(argv, NULL);
 	wenv = argv_to_wargv(env, NULL);
@@ -137,6 +138,14 @@ static intptr_t mingw_spawnve(int mode,
 		return -1;
 	}
 
+if (getenv("SPAWNVE_TRACE")) {
+	int i;
+	fprintf(stderr, "_wspawnve called with '%S', argv:", wcmd);
+	for (i = 0; wargv[i]; i++)
+		fprintf(stderr, " '%S'", wargv[i]);
+	fprintf(stderr, "\n"); fflush(stderr);
+}
+
 	/*
 	 * When /bin/<command> does not exist, and <command> is an applet,
 	 * run that applet instead.
@@ -144,6 +153,7 @@ static intptr_t mingw_spawnve(int mode,
 	if (!strncmp(cmd, "/bin/", 5) &&
 			GetFileAttributesW(wcmd) == INVALID_FILE_ATTRIBUTES &&
 			find_applet_by_name(cmd + 5) >= 0) {
+fprintf(stderr, "wcmd before: %S, wargv[0]: %S\n", wcmd, wargv[0]); fflush(stderr);
 		if (!argv[0] || (strcmp(argv[0], cmd) &&
 					strcmp(argv[0], cmd + 5))) {
 			/* argv[0] is different from cmd, let's shift in cmd */
@@ -155,6 +165,7 @@ static intptr_t mingw_spawnve(int mode,
 			}
 		}
 		wcmd = mingw_pathconv(get_busybox_exec_path());
+fprintf(stderr, "wcmd after: %S, wargv[0]: %S\n", wcmd, wargv[0]); fflush(stderr);
 	}
 
 	/*
@@ -467,18 +478,23 @@ spawnveq(int mode, const char *path, char *const *argv, char *const *env)
 	intptr_t ret;
 	char *(*quote_arg)(const char *);
 
+fprintf(stderr, "%s:%d: path=%s\n", __FILE__, __LINE__, path); fflush(stderr);
 	if (!argv) {
 		char *const empty_argv[] = { (char *)path, NULL };
 		return mingw_spawnve(mode, path, empty_argv, env);
 	}
 
 	quote_arg = is_msys2_cmd(path) ? quote_arg_msys2 : quote_arg_mingw;
+if (getenv("DEBUG_QUOTING")) { fprintf(stderr, "'%s' is MSYS2: %d\n", path, quote_arg == quote_arg_msys2); fflush(stderr); }
 	while (argv[argc])
 		argc++;
 
 	new_argv = malloc(sizeof(*argv)*(argc+1));
 	for (i = 0;i < argc;i++)
+{
 		new_argv[i] = quote_arg(argv[i]);
+if (getenv("DEBUG_QUOTING")) { fprintf(stderr, "quoted arg #%d '%s' to '%s'\n", i, argv[i], new_argv[i]); fflush(stderr); }
+}
 	new_argv[argc] = NULL;
 	ret = mingw_spawnve(mode, path, new_argv, env);
 	for (i = 0;i < argc;i++)
@@ -498,6 +514,7 @@ mingw_spawn_applet(int mode,
 	char path[MAX_PATH+20];
 	intptr_t ret;
 
+fprintf(stderr, "%s:%d: applet=%s\n", __FILE__, __LINE__, applet); fflush(stderr);
 	sprintf(path, "BUSYBOX_APPLET_NAME=%s", applet);
 	env = env_setenv(env, path);
 	ret = spawnveq(mode, (char *)get_busybox_exec_path(), argv, env);
@@ -515,6 +532,7 @@ mingw_spawn_interpreter(int mode, const char *prog, char *const *argv, char *con
 	char **new_argv;
 	int argc = 0;
 
+fprintf(stderr, "%s:%d: prog=%s\n", __FILE__, __LINE__, prog); fflush(stderr);
 	if (!interpr)
 		return spawnveq(mode, prog, argv, envp);
 
@@ -554,6 +572,7 @@ mingw_spawn_1(int mode, const char *cmd, char *const *argv, char *const *envp)
 {
 	intptr_t ret;
 
+fprintf(stderr, "%s:%d: cmd=%s\n", __FILE__, __LINE__, cmd); fflush(stderr);
 	if (ENABLE_FEATURE_PREFER_APPLETS &&
 	    find_applet_by_name(cmd) >= 0)
 		return mingw_spawn_applet(mode, cmd, argv, envp);
@@ -587,6 +606,7 @@ mingw_spawn(char **argv)
 {
 	intptr_t ret;
 
+fprintf(stderr, "%s:%d: argv[0]=%s\n", __FILE__, __LINE__, argv[0]); fflush(stderr);
 	ret = mingw_spawn_1(P_NOWAIT, argv[0], (char *const *)argv, environ);
 
 	return ret == -1 ? -1 : GetProcessId((HANDLE)ret);
@@ -595,16 +615,20 @@ mingw_spawn(char **argv)
 intptr_t FAST_FUNC
 mingw_spawn_proc(const char **argv)
 {
+fprintf(stderr, "%s:%d: argv[0]=%s\n", __FILE__, __LINE__, argv[0]); fflush(stderr);
 	return mingw_spawn_1(P_NOWAIT, argv[0], (char *const *)argv, environ);
 }
 
 int
 mingw_execvp(const char *cmd, char *const *argv)
 {
+fprintf(stderr, "%s:%d: cmd=%s\n", __FILE__, __LINE__, cmd); fflush(stderr);
+{
 	int ret = (int)mingw_spawn_1(P_WAIT, cmd, argv, environ);
 	if (ret != -1)
 		exit(ret);
 	return ret;
+}
 }
 
 int
@@ -613,6 +637,7 @@ mingw_execve(const char *cmd, char *const *argv, char *const *envp)
 	int ret;
 	int mode = P_WAIT;
 
+fprintf(stderr, "%s:%d: cmd=%s\n", __FILE__, __LINE__, cmd); fflush(stderr);
 	if (ENABLE_FEATURE_PREFER_APPLETS &&
 	    find_applet_by_name(cmd) >= 0)
 		ret = mingw_spawn_applet(mode, cmd, argv, envp);
@@ -633,6 +658,7 @@ mingw_execve(const char *cmd, char *const *argv, char *const *envp)
 int
 mingw_execv(const char *cmd, char *const *argv)
 {
+fprintf(stderr, "%s:%d: cmd=%s\n", __FILE__, __LINE__, cmd); fflush(stderr);
 	return mingw_execve(cmd, argv, environ);
 }
 
