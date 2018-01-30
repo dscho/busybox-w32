@@ -59,22 +59,29 @@ int unsetenv(const char *name)
 
 int clearenv(void)
 {
-	char *envp, *name, *s;
+	int ret = 0;
+	LPWSTR env, p;
+	WCHAR buf[32768];
 
-	while ( environ && (envp=*environ) ) {
-		if ( (s=strchr(envp, '=')) != NULL ) {
-			name = xstrndup(envp, s-envp+1);
-			if ( putenv(name) == -1 ) {
-				free(name);
-				return -1;
+	p = env = GetEnvironmentStringsW();
+	while (p && *p) {
+		int len = wcslen(p);
+		LPWSTR equal = wcschr(p, L'=');
+
+		if (equal) {
+			wcsncpy(buf, p, equal - p);
+			buf[equal - p] = L'\0';
+			if (!SetEnvironmentVariableW(buf, NULL)) {
+				ret = -1;
+				break;
 			}
-			free(name);
 		}
-		else {
-			return -1;
-		}
+		p += len + 1;
 	}
-	return 0;
+
+	FreeEnvironmentStringsW(env);
+
+	return ret;
 }
 
 int mingw_putenv(const char *env)
