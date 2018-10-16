@@ -16,6 +16,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <ctype.h>
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 #undef ARRAY_SIZE
 #define ARRAY_SIZE(x) ((unsigned)(sizeof(x) / sizeof((x)[0])))
@@ -92,6 +96,7 @@ int main(int argc, char **argv)
 	if (i < 0)
 		return 1;
 	dup2(i, 1);
+	close(i);
 
 	/* Keep in sync with include/busybox.h! */
 
@@ -225,9 +230,16 @@ int main(int argc, char **argv)
 
 	if (fclose(stdout))
 		return 1;
+#ifdef __MINGW32__
+	if (!MoveFileExA(tmp1, argv[1], MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
+		return 1;
+	if (!MoveFileExA(tmp2, argv[2], MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
+		return 1;
+#else
 	if (rename(tmp1, argv[1]))
 		return 1;
 	if (rename(tmp2, argv[2]))
 		return 1;
+#endif
 	return 0;
 }
