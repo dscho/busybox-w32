@@ -408,11 +408,11 @@ int mingw_open (const char *filename, int oflags, ...)
 	int fd;
 	int special = (oflags & O_SPECIAL);
 	int dev = get_dev_type(filename);
-	wchar_t *wpath = NULL;
+	const wchar_t *wpath = NULL;
 
 	/* /dev/null is always allowed, others only if O_SPECIAL is set */
 	if (dev != NOT_DEVICE && (dev == DEV_NULL || special)) {
-		filename = "nul";
+		wpath = L"nul";
 		oflags = O_RDWR;
 	} else if (filename)
 		wpath = mingw_pathconv(filename);
@@ -527,9 +527,9 @@ static inline int get_file_attr(const wchar_t *wpath, WIN32_FIND_DATAW *fdata)
 
 	if (GetLastError() == ERROR_SHARING_VIOLATION) {
 		HANDLE hnd;
-		WIN32_FIND_DATA fd;
+		WIN32_FIND_DATAW fd;
 
-		if ((hnd=FindFirstFile(fname, &fd)) != INVALID_HANDLE_VALUE) {
+		if ((hnd=FindFirstFileW(wpath, &fd)) != INVALID_HANDLE_VALUE) {
 			fdata->dwFileAttributes = fd.dwFileAttributes;
 			fdata->ftCreationTime = fd.ftCreationTime;
 			fdata->ftLastAccessTime = fd.ftLastAccessTime;
@@ -567,7 +567,7 @@ static int has_exec_format(const wchar_t *wname)
 {
 	int fd, n, sig;
 	unsigned int offset;
-	unsigned wchar_t wbuf[1024];
+	unsigned char buf[1024];
 
 	/* special case: skip DLLs, there are thousands of them! */
 	n = wcslen(wname);
@@ -638,8 +638,8 @@ static int do_lstat(int follow, const wchar_t *wpath, struct mingw_stat *buf)
 		buf->st_mode = file_attr_to_st_mode(fdata.dwFileAttributes);
 		if (S_ISREG(buf->st_mode) &&
 		    ((len > 4 && (!_wcsicmp(wpath+len-4, L".exe") ||
-				  !_wcsicmp(wpath+len-4, L".com")) ||
-		      has_exec_format(wpath))))
+				  !_wcsicmp(wpath+len-4, L".com"))) ||
+		     has_exec_format(wpath)))
 			buf->st_mode |= S_IXUSR|S_IXGRP|S_IXOTH;
 		buf->st_size = fdata.nFileSizeLow |
 			(((off64_t)fdata.nFileSizeHigh)<<32);
