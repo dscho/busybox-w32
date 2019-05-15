@@ -463,7 +463,7 @@ static struct gstr get_relations_str(struct symbol **sym_arr)
 
 pid_t pid;
 
-#ifdef SIGWINCH
+#if defined(SIGWINCH) && !defined(__MINGW32__)
 static void winch_handler(int sig)
 {
 	if (!do_resize) {
