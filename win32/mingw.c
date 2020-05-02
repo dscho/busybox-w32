@@ -537,7 +537,7 @@ static inline int get_file_attr(const wchar_t *wpath, WIN32_FIND_DATAW *fdata)
 
 	if (GetLastError() == ERROR_SHARING_VIOLATION) {
 		HANDLE hnd;
-		WIN32_FIND_DATA fd;
+		WIN32_FIND_DATAW fd;
 
 		if ((hnd=FindFirstFileW(wpath, &fd)) != INVALID_HANDLE_VALUE) {
 			fdata->dwFileAttributes = fd.dwFileAttributes;
