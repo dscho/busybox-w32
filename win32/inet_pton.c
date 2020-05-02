@@ -6,6 +6,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x600
+/* Vista already defines inet_pton() */
+
 #include "libbb.h"
 
 #include <errno.h>
@@ -200,4 +203,5 @@ inet_pton6(const char *src, unsigned char *dst) {
 	memmove(dst, tmp, NS_IN6ADDRSZ);
 	return (1);
 }
+#endif
 #endif
