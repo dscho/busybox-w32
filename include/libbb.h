@@ -255,12 +255,14 @@ PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
 #endif
 
 /* Tested to work correctly with all int types (IIRC :]) */
+#undef MAXINT
 #define MAXINT(T) (T)( \
 	((T)-1) > 0 \
 	? (T)-1 \
 	: (T)~((T)1 << (sizeof(T)*8-1)) \
 	)
 
+#undef MININT
 #define MININT(T) (T)( \
 	((T)-1) > 0 \
 	? (T)0 \
