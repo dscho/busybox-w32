@@ -932,8 +932,6 @@ int utimes(const char *file_name, const struct timeval tims[2])
 	if (!wpath)
 		return -1;
 
-	flags = FILE_ATTRIBUTE_NORMAL;
-
 	fh = CreateFileW(wpath, FILE_WRITE_ATTRIBUTES, 0,
 				NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 	if ( fh == INVALID_HANDLE_VALUE ) {
