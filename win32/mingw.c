@@ -1042,6 +1042,8 @@ char *mingw_getcwd(char *pointer, int len)
 	if (!ret)
 		return ret;
 	if (!strncmp(ret, "\\\\?\\", 4)) {
+		int i;
+
 		for (i = 0; ret[i + 4]; i++)
 			ret[i] = ret[i + 4];
 		ret[i] = '\0';
