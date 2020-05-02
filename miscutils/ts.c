@@ -52,6 +52,7 @@ int ts_main(int argc UNUSED_PARAM, char **argv)
 	while ((line = xmalloc_fgets(stdin)) != NULL) {
 		struct timeval ts;
 		struct tm tm_time;
+		time_t t_sec;
 
 		gettimeofday(&ts, NULL);
 		if (opt) {
@@ -70,7 +71,8 @@ int ts_main(int argc UNUSED_PARAM, char **argv)
 			if (opt & 1) /* -i */
 				base = ts1;
 		}
-		localtime_r(&ts.tv_sec, &tm_time);
+		localtime_r(&t_sec, &tm_time);
+		ts.tv_sec = t_sec;
 		strftime(date_buf, COMMON_BUFSIZE, fmt_dt2str, &tm_time);
 		if (!frac) {
 			printf("%s %s", date_buf, line);
