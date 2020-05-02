@@ -411,22 +411,21 @@ int mingw_open (const char *filename, int oflags, ...)
 
 	/* /dev/null is always allowed, others only if O_SPECIAL is set */
 	if (dev == DEV_NULL || (special && dev != NOT_DEVICE)) {
-		filename = "nul";
+		wpath = L"nul";
 		oflags = O_RDWR;
-	}
+	} else
+		wpath = mingw_pathconv(filename);
+	if (!wpath)
+		return -1;
 
 	va_start(args, oflags);
 	mode = va_arg(args, int);
 	va_end(args);
 
-	fd = open(filename, oflags&~O_SPECIAL, mode);
+	fd = _wopen(wpath, oflags&~O_SPECIAL, mode);
 	if (fd >= 0) {
 		update_dev_fd(dev, fd);
 	}
-	wpath = mingw_pathconv(filename);
-	if (!wpath)
-		return -1;
-	fd = _wopen(wpath, oflags, mode);
 	else if ((oflags & O_ACCMODE) != O_RDONLY && errno == EACCES) {
 		DWORD attrs = GetFileAttributes(filename);
 		if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY))
