@@ -719,10 +719,10 @@ static uid_t file_owner(HANDLE fh)
 }
 #endif
 
-static int is_symlink(DWORD attr, const char *pathname, WIN32_FIND_DATAA *fbuf)
+static int is_symlink(DWORD attr, wchar_t *wpath, WIN32_FIND_DATAA *fbuf)
 {
 	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
-		HANDLE handle = FindFirstFileA(pathname, fbuf);
+		HANDLE handle = FindFirstFileW(wpath, fbuf);
 		if (handle != INVALID_HANDLE_VALUE) {
 			FindClose(handle);
 			return ((fbuf->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
