@@ -22,6 +22,22 @@
 #ifndef _GL_POLL_H
 #define _GL_POLL_H
 
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x600
+/* Vista has its own, socket-only poll() */
+#include <winsock2.h>
+#undef POLLIN
+#undef POLLPRI
+#undef POLLOUT
+#undef POLLERR
+#undef POLLHUP
+#undef POLLNVAL
+#undef POLLRDNORM
+#undef POLLRDBAND
+#undef POLLWRNORM
+#undef POLLWRBAND
+#define pollfd compat_pollfd2
+#endif
+
 /* fake a poll(2) environment */
 #define POLLIN      0x0001      /* any readable data available   */
 #define POLLPRI     0x0002      /* OOB/Urgent readable data      */

@@ -17,7 +17,10 @@ typedef int uid_t;
 static inline unsigned int git_ntohl(unsigned int x) { return (unsigned int)ntohl(x); }
 #define ntohl git_ntohl
 int inet_aton(const char *cp, struct in_addr *inp);
+#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x600
+/* Vista defines this already */
 int inet_pton(int af, const char *src, void *dst);
+#endif
 
 /*
  * fcntl.h
