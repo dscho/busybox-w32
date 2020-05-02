@@ -71,7 +71,7 @@ static void kill_spawned_processes_on_signal(void)
 	for (i = 0; i < spawned_processes.nr; i++) {
 		if (GetExitCodeProcess(spawned_processes.h[i], &status) &&
 				status == STILL_ACTIVE)
-			exit_process_by_handle(spawned_processes.h[i],
+			kill_SIGTERM_by_handle(spawned_processes.h[i],
 					       128 + signal);
 		CloseHandle(spawned_processes.h[i]);
 	}
