@@ -162,7 +162,7 @@ int cal_main(int argc UNUSED_PARAM, char **argv)
 			hp += strlen(hp);
 			*hp++ = ' ';
 #else
-			strncpy(day_headings + i * (3+julian) + julian, buf, 2);
+			memcpy(day_headings + i * (3+julian) + julian, buf, 2);
 #endif
 		}
 	} while (++i < 12);
