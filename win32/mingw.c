@@ -260,6 +260,16 @@ wchar_t *mingw_pathconv(const char *path)
 	return pathconv_rest(result, pseudo_root_len, path + 1);
 }
 
+static int wpath2path(const wchar_t *wpath, char *path, size_t max_length)
+{
+	if (!WideCharToMultiByte(CP_UTF8, 0, wpath, -1,
+				path, max_length, NULL, NULL)) {
+		errno = ENAMETOOLONG;
+		return -1;
+	}
+	return 0;
+}
+
 int err_win_to_posix(void)
 {
 	int error = ENOSYS;
@@ -1362,8 +1372,8 @@ static char *resolve_symlinks(char *path)
  */
 char *realpath(const char *path, char *resolved_path)
 {
-	char buffer[MAX_PATH];
-	char *real_path, *p;
+	wchar_t wbuffer[MAX_PATH];
+	wchar_t *real_path, *p, *wpath;
 
 	/* enforce glibc pre-2.3 behaviour */
 	if (path == NULL || resolved_path == NULL) {
@@ -1371,15 +1381,18 @@ char *realpath(const char *path, char *resolved_path)
 		return NULL;
 	}
 
-	wchar_t *wpath = mingw_pathconv(path);
+	wpath = mingw_pathconv(path);
 	if (!wpath)
 		return NULL;
-	if (_fullpath(buffer, path, MAX_PATH) &&
-			(real_path=resolve_symlinks(buffer))) {
-		bs_to_slash(strcpy(resolved_path, real_path));
-		p = last_char_is(resolved_path, '/');
-		if (p && p > resolved_path && p[-1] != ':')
-			*p = '\0';
+	if (_wfullpath(wbuffer, wpath, MAX_PATH) &&
+			(real_path=resolve_symlinks(wbuffer))) {
+		for (p = real_path; *p; p++)
+			if (p == L'\\')
+				p = L'/';
+		if (p != real_path && p[-1] == L'/')
+			*(--p) = L'\0';
+		if (wpath2path(real_path, resolved_path, MAX_PATH))
+			return NULL;
 		return resolved_path;
 	}
 	return NULL;
