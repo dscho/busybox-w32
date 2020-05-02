@@ -237,7 +237,9 @@ int main(int argc, char **argv)
 	unlink(argv[1]);
 #endif
 	if (rename(tmp1, argv[1]))
+{ fprintf(stderr, "error renaming: %s -> %s: %s\n", tmp1, argv[1], strerror(errno));
 		return 1;
+}
 #ifdef __MINGW32__
 	unlink(argv[2]);
 #endif
