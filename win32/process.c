@@ -193,7 +193,7 @@ static intptr_t mingw_spawnve(int mode,
 		DWORD exit_code;
 		WaitForSingleObject((HANDLE)ret, INFINITE);
 		if (!GetExitCodeProcess((HANDLE)ret, &exit_code)) {
-			errno = err_win_to_posix(GetLastError());
+			errno = err_win_to_posix();
 			CloseHandle((HANDLE)ret);
 			return -1;
 		}
