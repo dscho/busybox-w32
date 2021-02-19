@@ -451,6 +451,7 @@ mode_t mingw_umask(mode_t new_mode)
 	return tmp_mode;
 }
 
+#if 0
 /*
  * Examine a file's contents to determine if it can be executed.  This
  * should be a last resort:  in most cases it's much more efficient to
@@ -505,6 +506,7 @@ static int has_exec_format(const char *name)
 
 	return 0;
 }
+#endif
 
 #if ENABLE_FEATURE_EXTRA_FILE_DATA
 static uid_t file_owner(HANDLE fh)
@@ -599,6 +601,43 @@ static int is_symlink(DWORD attr, const char *pathname, WIN32_FIND_DATAA *fbuf)
 	return 0;
 }
 
+#if ENABLE_FEATURE_READLINK2
+static wchar_t *normalize_ntpath(wchar_t *wbuf);
+
+static wchar_t *resolve_symlinksW(const wchar_t *wpath, wchar_t *resolved, size_t size)
+{
+	HANDLE h;
+	DWORD status;
+	wchar_t *ptr = NULL;
+	DECLARE_PROC_ADDR(DWORD, GetFinalPathNameByHandleW, HANDLE,
+						LPWSTR, DWORD, DWORD);
+
+	/* need a file handle to resolve symlinks */
+	h = CreateFileW(wpath, 0, 0, NULL, OPEN_EXISTING,
+				FILE_FLAG_BACKUP_SEMANTICS, NULL);
+	if (h != INVALID_HANDLE_VALUE) {
+		if (!INIT_PROC_ADDR(kernel32.dll, GetFinalPathNameByHandleW)) {
+			goto end;
+		}
+
+		/* normalize the path and return it on success */
+		status = GetFinalPathNameByHandleW(h, resolved, size,
+						   FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);
+		if (status != 0 && status < MAX_PATH) {
+			ptr = normalize_ntpath(resolved);
+			goto end;
+		}
+	}
+
+	errno = err_win_to_posix();
+ end:
+	CloseHandle(h);
+	return ptr;
+}
+#endif
+
+static int has_exe_suffixW(const wchar_t *wpath);
+
 /* If follow is true then act like stat() and report on the link
  * target. Otherwise report on the link itself.
  */
@@ -609,6 +648,9 @@ static int do_lstat(int follow, const char *file_name, struct mingw_stat *buf)
 	WIN32_FIND_DATAA findbuf;
 	DWORD low, high;
 	off64_t size;
+#if ENABLE_FEATURE_READLINK2
+	wchar_t followed[MAX_PATH];
+#endif
 #if ENABLE_FEATURE_EXTRA_FILE_DATA
 	DWORD flags;
 	BY_HANDLE_FILE_INFORMATION hdata;
@@ -1211,6 +1253,7 @@ int symlink(const char *target, const char *linkpath)
 	return 0;
 }
 
+#if 0
 static char *normalize_ntpathA(char *buf)
 {
 	/* fix absolute path prefixes */
@@ -1229,7 +1272,9 @@ static char *normalize_ntpathA(char *buf)
 	}
 	return buf;
 }
+#endif
 
+#if 0
 static char *resolve_symlinks(char *path)
 {
 	HANDLE h;
@@ -1268,6 +1313,7 @@ static char *resolve_symlinks(char *path)
 	free(resolve);
 	return ptr;
 }
+#endif
 
 /*
  * Emulate realpath in two stages:
@@ -1404,16 +1450,24 @@ int mingw_chdir(const char *dirname)
 {
 	struct stat st;
 	int ret = -1;
-	const char *realdir = dirname;
+	wchar_t *wpath = mingw_pathconv(dirname);
 
-	if (lstat(dirname, &st) == 0 && S_ISLNK(st.st_mode)) {
-		realdir = auto_string(xmalloc_readlink(dirname));
-		if (realdir)
-			fix_path_case((char *)realdir);
-	}
+	if (!wpath)
+		return -1;
 
-	if (realdir)
-		ret = chdir(realdir);
+	/*
+	 * First, try with the non-prefixed path: among other executables,
+	 * cmd.exe cannot be started with the current directory set to
+	 * a \\?\-prefixed path.
+	 */
+	if (!wcsncmp(wpath, L"\\\\?\\", 4))
+		wpath += 4;
+
+	if (do_lstat(0, wpath, &st) == 0 && S_ISLNK(st.st_mode))
+		wpath = resolve_symlinksW(wpath, wpath, MAX_PATH);
+
+	if (wpath)
+		ret = _wchdir(wpath);
 
 	return ret;
 }
@@ -1649,6 +1703,30 @@ int has_exe_suffix(const char *name)
 	return has_win_suffix(name, 0);
 }
 
+static int has_exe_suffixW(const wchar_t *wpath)
+{
+	const wchar_t *dot = NULL, *p;
+	int i;
+
+	for (p = wpath; *p; p++)
+		if (*p == L'.')
+			dot = p;
+		else if (*p == '/' || *p == '\\')
+			dot = NULL;
+
+	for (i = 0; dot && i < NUMEXT; i++) {
+		const char *r = win_suffix[i];
+		const wchar_t *q;
+
+		for (q = dot + 1; *q && *q == (wchar_t)*r; q++, r++)
+			; /* continue */
+		if (!*q && !*r)
+			return 1;
+	}
+
+	return 0;
+}
+
 int has_exe_suffix_or_dot(const char *name)
 {
 	return last_char_is(name, '.') || has_win_suffix(name, 0);
@@ -1807,34 +1885,6 @@ ULONGLONG CompatGetTickCount64(void)
 	return GetTickCount64();
 }
 #endif
-
-#undef chdir
-int mingw_chdir(const char *path)
-{
-	wchar_t *wpath = mingw_pathconv(path);
-
-	if (!wpath)
-		return -1;
-
-	/*
-	 * First, try with the non-prefixed path: among other executables,
-	 * cmd.exe cannot be started with the current directory set to
-	 * a \\?\-prefixed path.
-	 */
-	if (!wcsncmp(wpath, L"\\\\?\\", 4) && !_wchdir(wpath + 4))
-		return 0;
-
-	if (_wchdir(wpath)) {
-		wchar_t shortpath[PATH_MAX_LONG];
-		int saved_errno = errno;
-
-		if (GetShortPathNameW(wpath, shortpath, PATH_MAX_LONG))
-			return _wchdir(shortpath);
-		errno = saved_errno;
-		return -1;
-	}
-	return 0;
-}
 
 #if ENABLE_FEATURE_INSTALLER
 /*
