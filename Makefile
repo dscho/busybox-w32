@@ -622,7 +622,7 @@ quiet_cmd_busybox__ ?= LINK    $@
       "$(CC)" \
       "$(CFLAGS) $(CFLAGS_busybox)" \
       "$(LDFLAGS) $(EXTRA_LDFLAGS)" \
-      "$(core-y)" \
+      "$(filter-out win32/resources/built-in.o, $(core-y)) win32/resources/resources.o" \
       "$(libs-y)" \
       "$(LDLIBS)" \
       && $(srctree)/scripts/generate_BUFSIZ.sh --post include/common_bufsiz.h
