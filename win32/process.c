@@ -53,7 +53,7 @@ static struct {
 static void kill_spawned_processes_on_signal(void)
 {
         DWORD status;
-	int i, signal;
+	int i;
 
 	/*
 	 * Only continue if the process was terminated by a signal, as
@@ -65,14 +65,12 @@ static void kill_spawned_processes_on_signal(void)
 	if (!GetExitCodeProcess(GetCurrentProcess(), &status) ||
 			status <= 128 || status > 128 + SIGRTMAX)
 		return;
-	signal = status - 128;
 
 	EnterCriticalSection(&spawned_processes.mutex);
 	for (i = 0; i < spawned_processes.nr; i++) {
 		if (GetExitCodeProcess(spawned_processes.h[i], &status) &&
 				status == STILL_ACTIVE)
-			kill_SIGTERM_by_handle(spawned_processes.h[i],
-					       128 + signal);
+			kill_SIGTERM_by_handle(spawned_processes.h[i]);
 		CloseHandle(spawned_processes.h[i]);
 	}
 	spawned_processes.nr = 0;
