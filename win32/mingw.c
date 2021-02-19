@@ -1417,19 +1417,18 @@ int mingw_mkdir(const char *path, int mode UNUSED_PARAM)
 int mingw_chdir(const char *dirname)
 {
 	struct stat st;
-	int ret = -1;
-	const char *realdir = dirname;
+	char path[MAX_PATH];
 
-	if (lstat(dirname, &st) == 0 && S_ISLNK(st.st_mode)) {
-		realdir = auto_string(xmalloc_readlink(dirname));
-		if (realdir)
-			fix_path_case((char *)realdir);
-	}
+	dirname = mingw_pathconv(dirname);
 
-	if (realdir)
-		ret = chdir(realdir);
+	if (!dirname)
+		return -1;
+	strcpy(path, dirname);
 
-	return ret;
+	if (do_lstat(0, path, &st) == 0 && S_ISLNK(st.st_mode))
+		resolve_symlinks(path);
+
+	return chdir(path);
 }
 
 #undef chmod
@@ -1867,34 +1866,6 @@ ULONGLONG CompatGetTickCount64(void)
 	}
 
 	return GetTickCount64();
-}
-
-#undef chdir
-int mingw_chdir(const char *path)
-{
-	wchar_t *wpath = mingw_pathconv(path);
-
-	if (!wpath)
-		return -1;
-
-	/*
-	 * First, try with the non-prefixed path: among other executables,
-	 * cmd.exe cannot be started with the current directory set to
-	 * a \\?\-prefixed path.
-	 */
-	if (!wcsncmp(wpath, L"\\\\?\\", 4) && !_wchdir(wpath + 4))
-		return 0;
-
-	if (_wchdir(wpath)) {
-		wchar_t shortpath[PATH_MAX_LONG];
-		int saved_errno = errno;
-
-		if (GetShortPathNameW(wpath, shortpath, PATH_MAX_LONG))
-			return _wchdir(shortpath);
-		errno = saved_errno;
-		return -1;
-	}
-	return 0;
 }
 
 #if ENABLE_FEATURE_INSTALLER
