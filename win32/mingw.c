@@ -433,7 +433,7 @@ int mingw_open (const char *filename, int oflags, ...)
 	int fd;
 	int special = (oflags & O_SPECIAL);
 	int dev = get_dev_type(filename);
-	wchar_t *wpath;
+	const wchar_t *wpath;
 
 	/* /dev/null is always allowed, others only if O_SPECIAL is set */
 	if (dev == DEV_NULL || (special && dev != NOT_DEVICE)) {
@@ -610,6 +610,7 @@ mode_t mingw_umask(mode_t new_mode)
 	return tmp_mode;
 }
 
+#if 0
 /*
  * Examine a file's contents to determine if it can be executed.  This
  * should be a last resort:  in most cases it's much more efficient to
@@ -664,6 +665,7 @@ static int has_exec_format(const char *name)
 
 	return 0;
 }
+#endif
 
 #if ENABLE_FEATURE_EXTRA_FILE_DATA
 static uid_t file_owner(HANDLE fh)
@@ -745,7 +747,7 @@ static uid_t file_owner(HANDLE fh)
 }
 #endif
 
-static int is_symlink(DWORD attr, wchar_t *wpath, WIN32_FIND_DATAA *fbuf)
+static int is_symlink(DWORD attr, const wchar_t *wpath, WIN32_FIND_DATAW *fbuf)
 {
 	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
 		HANDLE handle = FindFirstFileW(wpath, fbuf);
@@ -758,6 +760,43 @@ static int is_symlink(DWORD attr, wchar_t *wpath, WIN32_FIND_DATAA *fbuf)
 	return 0;
 }
 
+#if ENABLE_FEATURE_READLINK2
+static wchar_t *normalize_ntpath(wchar_t *wbuf);
+
+static wchar_t *resolve_symlinksW(const wchar_t *wpath, wchar_t *resolved, size_t size)
+{
+	HANDLE h;
+	DWORD status;
+	wchar_t *ptr = NULL;
+	DECLARE_PROC_ADDR(DWORD, GetFinalPathNameByHandleW, HANDLE,
+						LPWSTR, DWORD, DWORD);
+
+	/* need a file handle to resolve symlinks */
+	h = CreateFileW(wpath, 0, 0, NULL, OPEN_EXISTING,
+				FILE_FLAG_BACKUP_SEMANTICS, NULL);
+	if (h != INVALID_HANDLE_VALUE) {
+		if (!INIT_PROC_ADDR(kernel32.dll, GetFinalPathNameByHandleW)) {
+			goto end;
+		}
+
+		/* normalize the path and return it on success */
+		status = GetFinalPathNameByHandleW(h, resolved, size,
+						   FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);
+		if (status != 0 && status < MAX_PATH) {
+			ptr = normalize_ntpath(resolved);
+			goto end;
+		}
+	}
+
+	errno = err_win_to_posix();
+ end:
+	CloseHandle(h);
+	return ptr;
+}
+#endif
+
+static int has_exe_suffixW(const wchar_t *wpath);
+
 /* If follow is true then act like stat() and report on the link
  * target. Otherwise report on the link itself.
  */
@@ -765,9 +804,11 @@ static int do_lstat(int follow, const wchar_t *wpath, struct mingw_stat *buf)
 {
 	int err = EINVAL;
 	WIN32_FIND_DATAW fdata;
-	WIN32_FIND_DATAA findbuf;
 	DWORD low, high;
 	off64_t size;
+#if ENABLE_FEATURE_READLINK2
+	wchar_t followed[MAX_PATH];
+#endif
 #if ENABLE_FEATURE_EXTRA_FILE_DATA
 	DWORD flags;
 	BY_HANDLE_FILE_INFORMATION hdata;
@@ -780,8 +821,9 @@ static int do_lstat(int follow, const wchar_t *wpath, struct mingw_stat *buf)
 		buf->st_gid = DEFAULT_GID;
 		buf->st_dev = buf->st_rdev = 0;
 
-		if (is_symlink(fdata.dwFileAttributes, wpath, &findbuf)) {
-			wchar_t *name = auto_string(xmalloc_realpath(wpath));
+#if ENABLE_FEATURE_READLINK2
+		if (is_symlink(fdata.dwFileAttributes, wpath, &fdata)) {
+			wchar_t *name = resolve_symlinksW(wpath, followed, MAX_PATH);
 
 			if (follow) {
 				/* The file size and times are wrong when Windows follows
@@ -795,16 +837,17 @@ static int do_lstat(int follow, const wchar_t *wpath, struct mingw_stat *buf)
 			buf->st_mode = S_IFLNK|S_IRWXU|S_IRWXG|S_IRWXO;
 			buf->st_attr = fdata.dwFileAttributes;
 			buf->st_size = name ? wcslen(name) : 0; /* should use readlink */
-			buf->st_atim = filetime_to_timespec(&(findbuf.ftLastAccessTime));
-			buf->st_mtim = filetime_to_timespec(&(findbuf.ftLastWriteTime));
-			buf->st_ctim = filetime_to_timespec(&(findbuf.ftCreationTime));
-		}
-		else {
+			buf->st_atim = filetime_to_timespec(&(fdata.ftLastAccessTime));
+			buf->st_mtim = filetime_to_timespec(&(fdata.ftLastWriteTime));
+			buf->st_ctim = filetime_to_timespec(&(fdata.ftCreationTime));
+		} else
+#endif
+		{
 			/* The file is not a symlink. */
 			buf->st_mode = file_attr_to_st_mode(fdata.dwFileAttributes);
 			buf->st_attr = fdata.dwFileAttributes;
 			if (S_ISREG(buf->st_mode) &&
-					(has_exe_suffix(wpath) || has_exec_format(wpath)))
+					(has_exe_suffixW(wpath)))
 				buf->st_mode |= S_IXUSR|S_IXGRP|S_IXOTH;
 			buf->st_size = fdata.nFileSizeLow |
 				(((off64_t)fdata.nFileSizeHigh)<<32);
@@ -865,7 +908,7 @@ int mingw_lstat(const char *file_name, struct mingw_stat *buf)
 	wchar_t *wpath = mingw_pathconv(file_name);
 	if (!wpath)
 		return -1;
-	return do_lstat(0, file_name, buf);
+	return do_lstat(0, wpath, buf);
 }
 
 int mingw_stat(const char *file_name, struct mingw_stat *buf)
@@ -1329,6 +1372,7 @@ int link(const char *oldpath, const char *newpath)
 	return 0;
 }
 
+#if 0
 static char *normalize_ntpathA(char *buf)
 {
 	/* fix absolute path prefixes */
@@ -1347,7 +1391,9 @@ static char *normalize_ntpathA(char *buf)
 	}
 	return buf;
 }
+#endif
 
+#if 0
 static char *resolve_symlinks(char *path)
 {
 	HANDLE h;
@@ -1378,6 +1424,7 @@ static char *resolve_symlinks(char *path)
 	CloseHandle(h);
 	return ptr;
 }
+#endif
 
 /*
  * Emulate realpath in two stages:
@@ -1403,10 +1450,10 @@ char *realpath(const char *path, char *resolved_path)
 	if (!wpath)
 		return NULL;
 	if (_wfullpath(wbuffer, wpath, MAX_PATH) &&
-			(real_path=resolve_symlinks(wbuffer))) {
+			(real_path=resolve_symlinksW(wbuffer, wbuffer, MAX_PATH))) {
 		for (p = real_path; *p; p++)
-			if (p == L'\\')
-				p = L'/';
+			if (*p == L'\\')
+				*p = L'/';
 		if (p != real_path && p[-1] == L'/')
 			*(--p) = L'\0';
 		if (wpath2path(real_path, resolved_path, MAX_PATH))
@@ -1506,7 +1553,7 @@ int mingw_mkdir(const char *path, int mode UNUSED_PARAM)
 		return -1;
 	if ((ret = _wmkdir(wpath)) < 0) {
 		lerrno = errno;
-		if (lerrno == EACCES && !do_stat_internal(1, wpath, &st)) {
+		if (lerrno == EACCES && !do_lstat(1, wpath, &st)) {
 			ret = 0;
 			lerrno = 0;
 		}
@@ -1521,16 +1568,24 @@ int mingw_chdir(const char *dirname)
 {
 	struct stat st;
 	int ret = -1;
-	const char *realdir = dirname;
+	wchar_t *wpath = mingw_pathconv(dirname);
 
-	if (lstat(dirname, &st) == 0 && S_ISLNK(st.st_mode)) {
-		realdir = auto_string(xmalloc_readlink(dirname));
-		if (realdir)
-			fix_path_case((char *)realdir);
-	}
+	if (!wpath)
+		return -1;
 
-	if (realdir)
-		ret = chdir(realdir);
+	/*
+	 * First, try with the non-prefixed path: among other executables,
+	 * cmd.exe cannot be started with the current directory set to
+	 * a \\?\-prefixed path.
+	 */
+	if (!wcsncmp(wpath, L"\\\\?\\", 4))
+		wpath += 4;
+
+	if (do_lstat(0, wpath, &st) == 0 && S_ISLNK(st.st_mode))
+		wpath = resolve_symlinksW(wpath, wpath, MAX_PATH);
+
+	if (wpath)
+		ret = _wchdir(wpath);
 
 	return ret;
 }
@@ -1715,7 +1770,7 @@ int mingw_access(const char *name, int mode)
 		}
 	}
 
-	if (!mingw_stat(wpath, &s)) {
+	if (!do_lstat(0, wpath, &s)) {
 		if ((s.st_mode&S_IXUSR)) {
 			return 0;
 		}
@@ -1764,6 +1819,30 @@ int has_bat_suffix(const char *name)
 int has_exe_suffix(const char *name)
 {
 	return has_win_suffix(name, 0);
+}
+
+static int has_exe_suffixW(const wchar_t *wpath)
+{
+	const wchar_t *dot = NULL, *p;
+	int i;
+
+	for (p = wpath; *p; p++)
+		if (*p == L'.')
+			dot = p;
+		else if (*p == '/' || *p == '\\')
+			dot = NULL;
+
+	for (i = 0; dot && i < NUMEXT; i++) {
+		const char *r = win_suffix[i];
+		const wchar_t *q;
+
+		for (q = dot + 1; *q && *q == (wchar_t)*r; q++, r++)
+			; /* continue */
+		if (!*q && !*r)
+			return 1;
+	}
+
+	return 0;
 }
 
 int has_exe_suffix_or_dot(const char *name)
@@ -1929,34 +2008,6 @@ ULONGLONG CompatGetTickCount64(void)
 	return GetTickCount64();
 }
 #endif
-
-#undef chdir
-int mingw_chdir(const char *path)
-{
-	wchar_t *wpath = mingw_pathconv(path);
-
-	if (!wpath)
-		return -1;
-
-	/*
-	 * First, try with the non-prefixed path: among other executables,
-	 * cmd.exe cannot be started with the current directory set to
-	 * a \\?\-prefixed path.
-	 */
-	if (!wcsncmp(wpath, L"\\\\?\\", 4) && !_wchdir(wpath + 4))
-		return 0;
-
-	if (_wchdir(wpath)) {
-		wchar_t shortpath[PATH_MAX_LONG];
-		int saved_errno = errno;
-
-		if (GetShortPathNameW(wpath, shortpath, PATH_MAX_LONG))
-			return _wchdir(shortpath);
-		errno = saved_errno;
-		return -1;
-	}
-	return 0;
-}
 
 #if ENABLE_FEATURE_INSTALLER
 /*
