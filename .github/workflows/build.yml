@@ -1,0 +1,19 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: git-for-windows/setup-git-for-windows-sdk@v0
+    - name: build
+      shell: bash
+      run: make mingw64_defconfig && make -j$(nproc) WINDRES=windres busybox.exe
+    - name: upload busybox
+      uses: actions/upload-artifact@v2
+      with:
+        name: busybox
+        path: busybox.exe
+
