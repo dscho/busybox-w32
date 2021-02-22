@@ -108,6 +108,13 @@ if [ -f "$bindir/busybox.exe" ]; then
 	test ! -d /bin && mkdir /bin
 	test ! -f /bin/echo.exe && cp "$bindir/busybox.exe" /bin/echo.exe
 	test ! -f /bin/true.exe && cp "$bindir/busybox.exe" /bin/true.exe
+
+	case "$(uname -o)" in
+	Msys)
+		# avoid MSYS2 path mangling for `dc` test
+		export MSYS2_ARG_CONV_EXCL='-e/;/woot/;/oot/;/one;/two;/|;/1;/^;/a'
+		;;
+	esac
 else
 	suffix=""
 	lnflag="-s"
