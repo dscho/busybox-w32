@@ -101,7 +101,7 @@ SKIP=
 
 # chown on a link was affecting file, dropping its suid/sgid bits
 rm -rf cpio.testdir
-optional FEATURE_CPIO_O FEATURE_STAT_FORMAT
+optional FEATURE_CPIO_O FEATURE_STAT_FORMAT PLATFORM_POSIX
 mkdir cpio.testdir
 touch cpio.testdir/file
 chmod 6755 cpio.testdir/file  # sets suid/sgid bits
@@ -127,7 +127,7 @@ testing "cpio extracts in existing directory" \
 " "" ""
 SKIP=
 
-optional FEATURE_CPIO_O
+optional FEATURE_CPIO_O PLATFORM_POSIX
 testing "cpio uses by default uid/gid" \
 "echo $0 | cpio -o -H newc | cpio -tv 2>&1 | head -n1 | awk ' { print \$2 } '; echo \$?" \
 "\
