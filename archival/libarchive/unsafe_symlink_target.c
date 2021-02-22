@@ -10,7 +10,6 @@ void FAST_FUNC create_or_remember_link(llist_t **link_placeholders,
 		const char *linkname,
 		int hard_link)
 {
-#if !ENABLE_PLATFORM_MINGW32
 	if (hard_link || target[0] == '/' || strstr(target, "..")) {
 		llist_add_to_end(link_placeholders,
 			xasprintf("%c%s%c%s", hard_link, linkname, '\0', target)
@@ -23,13 +22,8 @@ void FAST_FUNC create_or_remember_link(llist_t **link_placeholders,
 			"sym", linkname, target
 		);
 	}
-#else
-	/* symlink isn't implemented for WIN32, just issue a warning */
-	bb_perror_msg("can't create %slink '%s' to '%s'", "sym", linkname, target);
-#endif
 }
 
-#if !ENABLE_PLATFORM_MINGW32
 void FAST_FUNC create_links_from_list(llist_t *list)
 {
 	while (list) {
@@ -46,4 +40,3 @@ void FAST_FUNC create_links_from_list(llist_t *list)
 		list = list->link;
 	}
 }
-#endif
