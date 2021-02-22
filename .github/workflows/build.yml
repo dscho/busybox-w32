@@ -28,3 +28,15 @@ jobs:
       with:
         name: busybox
         path: busybox.exe
+    - name: install test dependencies
+      shell: bash
+      run: pacman -Sy --noconfirm sharutils xz zip
+    - name: run testsuite
+      shell: bash
+      working-directory: ./testsuite
+      run: ../busybox.exe sh ./runtest -v
+      env:
+        DEBUG: true
+        LC_ALL: C
+        SKIP_KNOWN_BUGS: true
+        TZ: UTC
