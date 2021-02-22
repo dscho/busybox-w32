@@ -136,7 +136,7 @@ $user/$group
 " "" ""
 SKIP=
 
-optional FEATURE_CPIO_O
+optional FEATURE_CPIO_O PLATFORM_POSIX
 testing "cpio -R with create" \
 "echo $0 | cpio -o -H newc -R 1234:5678 | cpio -tv 2>&1 | head -n1 | awk ' { print \$2 } '; echo \$?" \
 "\
@@ -145,7 +145,7 @@ testing "cpio -R with create" \
 " "" ""
 SKIP=
 
-optional FEATURE_CPIO_O
+optional FEATURE_CPIO_O PLATFORM_POSIX
 testing "cpio -R with extract" \
 "echo $0 | cpio -o -H newc | cpio -tv -R 8765:4321 2>&1 | head -n1 | awk ' { print \$2 } '; echo \$?" \
 "\
