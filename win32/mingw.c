@@ -499,6 +499,58 @@ static uid_t file_owner(HANDLE fh)
 }
 #endif
 
+static int is_absolute_path(const char *path)
+{
+	return path[0] == '/' || path[0] == '\\' || has_dos_drive_prefix(path);
+}
+
+int symlink(const char *target, const char *linkpath)
+{
+	struct mingw_stat st;
+	DWORD flags = 0;
+	char *relative = NULL;
+#if _WIN32_WINNT < 0x0600
+	DECLARE_PROC_ADDR(BOOL, CreateSymbolicLinkA, LPCSTR, LPCSTR, DWORD);
+
+	if (!INIT_PROC_ADDR(kernel32.dll, CreateSymbolicLinkA)) {
+		errno = ENOSYS;
+		return -1;
+	}
+
+#define SYMBOLIC_LINK_FLAG_DIRECTORY 0x1
+#endif
+
+	/*
+	 * Starting with Windows 10 Build 14972, symbolic links can be created
+	 * using CreateSymbolicLink() without elevation by passing the flag
+	 * SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (0x02) as last
+	 * parameter, provided the Developer Mode has been enabled. Some
+	 * earlier Windows versions complain about this flag with an
+	 * ERROR_INVALID_PARAMETER, hence we have to test the build number
+	 * specifically.
+	 */
+	if (GetVersion() >= 14972 << 16)
+		flags |= 2;
+
+	if (!is_absolute_path(target) && has_path(linkpath)) {
+		/* make target's path relative to current directory */
+		const char *name = bb_get_last_path_component_nostrip(linkpath);
+		relative = xasprintf("%.*s%s",
+				     (int)(name - linkpath), linkpath, target);
+	}
+
+	if (!mingw_stat(relative ? relative : target, &st) &&
+	    S_ISDIR(st.st_mode))
+		flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+	free(relative);
+
+	if (CreateSymbolicLinkA(linkpath, target, flags))
+		return 0;
+
+	errno = err_win_to_posix();
+	return -1;
+}
+
 static int is_symlink(DWORD attr, const char *pathname, WIN32_FIND_DATAA *fbuf)
 {
 	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
