@@ -54,8 +54,7 @@ int which_main(int argc UNUSED_PARAM, char **argv)
 			if (!option_mask32) /* -a not set */
 				break;
 		}
-		else if (find_applet_by_name(*argv) >= 0 ||
-				is_prefixed_with(*argv, "busybox")) {
+		else if (find_applet_by_name(*argv) >= 0) {
 			missing = 0;
 			puts(*argv);
 			if (!option_mask32) /* -a not set */
