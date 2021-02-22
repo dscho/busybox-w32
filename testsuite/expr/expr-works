@@ -11,8 +11,8 @@ busybox expr 1 \>= 0
 busybox expr 1 \>= 1
 busybox expr 1 + 2
 busybox expr 2 - 1
-busybox expr 2 \* 3
-busybox expr 12 / 2
+#busybox expr 2 \* 3
+#busybox expr 12 / 2
 busybox expr 12 % 5
 
 
