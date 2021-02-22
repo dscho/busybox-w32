@@ -1372,9 +1372,25 @@ int fcntl(int fd, int cmd, ...)
 #undef unlink
 int mingw_unlink(const char *pathname)
 {
+	struct mingw_stat st;
+
 	/* read-only files cannot be removed */
 	chmod(pathname, 0666);
-	return unlink(pathname);
+
+	if (unlink(pathname) == 0)
+		return 0;
+
+	/*
+	 * unlink() for directory symlinks fails with ERROR_ACCESS_DENIED
+	 * (EACCES), so try rmdir() in that case.
+	 */
+	if (errno == EACCES) {
+		if (!mingw_lstat(pathname, &st) && S_ISLNK(st.st_mode))
+			return rmdir(pathname);
+		errno = EACCES;
+	}
+
+	return -1;
 }
 
 #undef strftime
