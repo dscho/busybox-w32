@@ -529,6 +529,21 @@ static int do_lstat(int follow, const char *file_name, struct mingw_stat *buf)
 	HANDLE fh;
 #endif
 
+	if (!strcasecmp("nul", file_name) || !strcmp("/dev/null", file_name)) {
+		memset(buf, 0, sizeof(*buf));
+		buf->st_blksize = 4096;
+#if ENABLE_FEATURE_DATE_NANO
+		clock_gettime(CLOCK_REALTIME, &buf->st_ctim);
+#else
+		time(&buf->st_ctim.tv_sec);
+#endif
+		memcpy(&buf->st_atim, &buf->st_ctim, sizeof(buf->st_ctim));
+		memcpy(&buf->st_mtim, &buf->st_ctim, sizeof(buf->st_ctim));
+		buf->st_mode = 0666;
+		buf->st_nlink = 1;
+		return 0;
+	}
+
 	while (file_name && !(err=get_file_attr(file_name, &fdata))) {
 		buf->st_ino = 0;
 		buf->st_uid = DEFAULT_UID;
