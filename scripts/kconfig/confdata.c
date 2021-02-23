@@ -366,7 +366,7 @@ int conf_write(const char *name)
 		basename = conf_def_filename;
 
 	sprintf(newname, "%s.tmpconfig.%d", dirname, (int)getpid());
-	out = fopen(newname, "w");
+	out = fopen(newname, "wb");
 	if (!out)
 		return 1;
 	out_h = NULL;
