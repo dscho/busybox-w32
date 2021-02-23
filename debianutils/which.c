@@ -47,15 +47,15 @@ int which_main(int argc UNUSED_PARAM, char **argv)
 		int missing = 1;
 
 #if ENABLE_PLATFORM_MINGW32 && ENABLE_FEATURE_SH_STANDALONE
-		if (strcmp(*argv, "busybox") == 0 &&
-				is_suffixed_with(bb_busybox_exec_path, "busybox.exe")) {
-			missing = 0;
-			puts(bb_busybox_exec_path);
-			if (!option_mask32) /* -a not set */
-				break;
+		if (strcmp(*argv, "busybox") == 0) {
+			if (is_suffixed_with(bb_busybox_exec_path, "busybox.exe")) {
+				missing = 0;
+				puts(bb_busybox_exec_path);
+				if (!option_mask32) /* -a not set */
+					break;
+			}
 		}
-		else if (find_applet_by_name(*argv) >= 0 ||
-				is_prefixed_with(*argv, "busybox")) {
+		else if (find_applet_by_name(*argv) >= 0) {
 			missing = 0;
 			puts(*argv);
 			if (!option_mask32) /* -a not set */
