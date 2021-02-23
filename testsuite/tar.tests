@@ -95,7 +95,7 @@ SKIP=
 cd .. || exit 1; rm -rf tar.tempdir 2>/dev/null
 
 mkdir tar.tempdir && cd tar.tempdir || exit 1
-optional FEATURE_TAR_CREATE FEATURE_LS_SORTFILES
+optional FEATURE_TAR_CREATE FEATURE_LS_SORTFILES PLATFORM_POSIX
 testing "tar hardlinks mode" '\
 >input_hard1
 chmod 741 input_hard1
@@ -129,7 +129,7 @@ SKIP=
 cd .. || exit 1; rm -rf tar.tempdir 2>/dev/null
 
 mkdir tar.tempdir && cd tar.tempdir || exit 1
-optional FEATURE_TAR_CREATE FEATURE_LS_SORTFILES
+optional FEATURE_TAR_CREATE FEATURE_LS_SORTFILES PLATFORM_POSIX
 testing "tar symlinks mode" '\
 >input_file
 chmod 741 input_file
@@ -336,8 +336,10 @@ SKIP=
 cd .. || exit 1; rm -rf tar.tempdir 2>/dev/null
 
 mkdir tar.tempdir && cd tar.tempdir || exit 1
-optional FEATURE_SEAMLESS_BZ2 FEATURE_TAR_AUTODETECT LS
+optional FEATURE_SEAMLESS_BZ2 FEATURE_TAR_AUTODETECT LS ASH_BASH_COMPAT
 testing "Symlink attack: create symlink and then write through it" '\
+exec 4>&2
+BASH_XTRACEFD=4
 exec 2>&1
 uudecode -o input && tar xvf input; echo $?
 ls /tmp/bb_test_evilfile
@@ -366,7 +368,7 @@ SKIP=
 cd .. || exit 1; rm -rf tar.tempdir 2>/dev/null
 
 mkdir tar.tempdir && cd tar.tempdir || exit 1
-optional FEATURE_TAR_CREATE
+optional FEATURE_TAR_CREATE PLATFORM_POSIX
 testing "Symlinks and hardlinks coexist" '\
 mkdir dir
 >dir/a

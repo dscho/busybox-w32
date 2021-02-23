@@ -1,1 +1,2 @@
+# FEATURE: CONFIG_PLATFORM_POSIX
 test x$(dirname $(pwd)) = x$(busybox dirname $(pwd))

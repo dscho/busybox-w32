@@ -10,7 +10,7 @@ umask 022
 # sed: coalesce spaces
 # cut: remove date
 # grep: remove "total NNN" lines
-FILTER_LS="sed 's/  */ /g' | cut -d' ' -f 1-5,9- | grep -v '^total '"
+FILTER_LS="sed 's/  */ /g' | cut -d' ' -f 1-2,5,9- | grep -v '^total '"
 
 
 # newc cpio archive of directory cpio.testdir with empty x and y hardlinks
@@ -40,8 +40,8 @@ ls -ln cpio.testdir | $FILTER_LS" \
 "\
 1 blocks
 0
--rw-r--r-- 2 $user $group 0 x
--rw-r--r-- 2 $user $group 0 y
+-rw-r--r-- 2 0 x
+-rw-r--r-- 2 0 y
 " "" ""
 SKIP=
 
@@ -78,11 +78,11 @@ ls -ln cpio.testdir2/cpio.testdir | $FILTER_LS" \
 "\
 2 blocks
 0
--rw-r--r-- 2 $user $group 0 empty
--rw-r--r-- 2 $user $group 0 empty1
--rw-r--r-- 2 $user $group 2 nonempty
--rw-r--r-- 2 $user $group 2 nonempty1
--rw-r--r-- 1 $user $group 0 solo
+-rw-r--r-- 2 0 empty
+-rw-r--r-- 2 0 empty1
+-rw-r--r-- 2 2 nonempty
+-rw-r--r-- 2 2 nonempty1
+-rw-r--r-- 1 0 solo
 " "" ""
 SKIP=
 
@@ -101,7 +101,7 @@ SKIP=
 
 # chown on a link was affecting file, dropping its suid/sgid bits
 rm -rf cpio.testdir
-optional FEATURE_CPIO_O FEATURE_STAT_FORMAT
+optional FEATURE_CPIO_O FEATURE_STAT_FORMAT PLATFORM_POSIX
 mkdir cpio.testdir
 touch cpio.testdir/file
 chmod 6755 cpio.testdir/file  # sets suid/sgid bits
@@ -127,7 +127,7 @@ testing "cpio extracts in existing directory" \
 " "" ""
 SKIP=
 
-optional FEATURE_CPIO_O
+optional FEATURE_CPIO_O PLATFORM_POSIX
 testing "cpio uses by default uid/gid" \
 "echo $0 | cpio -o -H newc | cpio -tv 2>&1 | head -n1 | awk ' { print \$2 } '; echo \$?" \
 "\
@@ -136,7 +136,7 @@ $user/$group
 " "" ""
 SKIP=
 
-optional FEATURE_CPIO_O
+optional FEATURE_CPIO_O PLATFORM_POSIX
 testing "cpio -R with create" \
 "echo $0 | cpio -o -H newc -R 1234:5678 | cpio -tv 2>&1 | head -n1 | awk ' { print \$2 } '; echo \$?" \
 "\
@@ -145,7 +145,7 @@ testing "cpio -R with create" \
 " "" ""
 SKIP=
 
-optional FEATURE_CPIO_O
+optional FEATURE_CPIO_O PLATFORM_POSIX
 testing "cpio -R with extract" \
 "echo $0 | cpio -o -H newc | cpio -tv -R 8765:4321 2>&1 | head -n1 | awk ' { print \$2 } '; echo \$?" \
 "\

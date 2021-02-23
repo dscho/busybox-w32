@@ -1,1 +1,2 @@
+# FEATURE: CONFIG_PLATFORM_POSIX
 test x$(id -ur) = x$(busybox id -ur)
