@@ -113,6 +113,11 @@ if [ -f "$bindir/busybox.exe" ]; then
 	Msys)
 		# avoid MSYS2 path mangling for `dc` test
 		export MSYS2_ARG_CONV_EXCL='-e/;/woot/;/oot/;/one;/two;/|;/1;/^;/a'
+
+		tsdir="$(cygpath -am "$tsdir")"
+		TZ=UTC
+		MSYS="${MSYS+$MSYS }winsymlinks:nativestrict"
+		LC_ALL=C
 		;;
 	esac
 else
