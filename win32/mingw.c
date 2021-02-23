@@ -499,6 +499,58 @@ static uid_t file_owner(HANDLE fh)
 }
 #endif
 
+static int is_absolute_path(const char *path)
+{
+	return path[0] == '/' || path[0] == '\\' || has_dos_drive_prefix(path);
+}
+
+int symlink(const char *target, const char *linkpath)
+{
+	struct mingw_stat st;
+	DWORD flags = 0;
+	char *relative = NULL;
+#if _WIN32_WINNT < 0x0600
+	DECLARE_PROC_ADDR(BOOL, CreateSymbolicLinkA, LPCSTR, LPCSTR, DWORD);
+
+	if (!INIT_PROC_ADDR(kernel32.dll, CreateSymbolicLinkA)) {
+		errno = ENOSYS;
+		return -1;
+	}
+
+#define SYMBOLIC_LINK_FLAG_DIRECTORY 0x1
+#endif
+
+	/*
+	 * Starting with Windows 10 Build 14972, symbolic links can be created
+	 * using CreateSymbolicLink() without elevation by passing the flag
+	 * SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (0x02) as last
+	 * parameter, provided the Developer Mode has been enabled. Some
+	 * earlier Windows versions complain about this flag with an
+	 * ERROR_INVALID_PARAMETER, hence we have to test the build number
+	 * specifically.
+	 */
+	if (GetVersion() >= 14972 << 16)
+		flags |= 2;
+
+	if (!is_absolute_path(target) && has_path(linkpath)) {
+		/* make target's path relative to current directory */
+		const char *name = bb_get_last_path_component_nostrip(linkpath);
+		relative = xasprintf("%.*s%s",
+				     (int)(name - linkpath), linkpath, target);
+	}
+
+	if (!mingw_stat(relative ? relative : target, &st) &&
+	    S_ISDIR(st.st_mode))
+		flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+	free(relative);
+
+	if (CreateSymbolicLinkA(linkpath, target, flags))
+		return 0;
+
+	errno = err_win_to_posix();
+	return -1;
+}
+
 static int is_symlink(DWORD attr, const char *pathname, WIN32_FIND_DATAA *fbuf)
 {
 	if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
@@ -821,17 +873,21 @@ char *mingw_getcwd(char *pointer, int len)
 #undef rename
 int mingw_rename(const char *pold, const char *pnew)
 {
+	struct mingw_stat st;
 	DWORD attrs;
 
 	/*
-	 * Try native rename() first to get errno right.
+	 * For non-symlinks, try native rename() first to get errno right.
 	 * It is based on MoveFile(), which cannot overwrite existing files.
 	 */
-	if (!rename(pold, pnew))
-		return 0;
-	if (errno != EEXIST)
-		return -1;
-	if (MoveFileEx(pold, pnew, MOVEFILE_REPLACE_EXISTING))
+	if (mingw_lstat(pold, &st) || !S_ISLNK(st.st_mode)) {
+		if (!rename(pold, pnew))
+			return 0;
+		if (errno != EEXIST)
+			return -1;
+	}
+	if (MoveFileEx(pold, pnew,
+		       MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
 		return 0;
 	/* TODO: translate more errors */
 	if (GetLastError() == ERROR_ACCESS_DENIED &&
@@ -1082,9 +1138,16 @@ static char *resolve_symlinks(char *path)
 	char *ptr = NULL;
 	DECLARE_PROC_ADDR(DWORD, GetFinalPathNameByHandleA, HANDLE,
 						LPSTR, DWORD, DWORD);
+	char *resolve = NULL;
+
+	if (GetFileAttributesA(path) & FILE_ATTRIBUTE_REPARSE_POINT) {
+		resolve = xmalloc_follow_symlinks(path);
+		if (!resolve)
+			return NULL;
+	}
 
 	/* need a file handle to resolve symlinks */
-	h = CreateFileA(path, 0, 0, NULL, OPEN_EXISTING,
+	h = CreateFileA(resolve ?: path, 0, 0, NULL, OPEN_EXISTING,
 				FILE_FLAG_BACKUP_SEMANTICS, NULL);
 	if (h != INVALID_HANDLE_VALUE) {
 		if (!INIT_PROC_ADDR(kernel32.dll, GetFinalPathNameByHandleA)) {
@@ -1103,6 +1166,7 @@ static char *resolve_symlinks(char *path)
 	errno = err_win_to_posix();
  end:
 	CloseHandle(h);
+	free(resolve);
 	return ptr;
 }
 
@@ -1187,9 +1251,10 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz)
 			name[len] = 0;
 			name = normalize_ntpath(name);
 			len = wcslen(name);
-			if (len > bufsiz)
-				len = bufsiz;
+			if (len >= bufsiz)
+				len = bufsiz - 1;
 			if (WideCharToMultiByte(CP_ACP, 0, name, len, buf, bufsiz, 0, 0)) {
+				buf[len] = '\0';
 				return len;
 			}
 		}
@@ -1311,9 +1376,25 @@ int fcntl(int fd, int cmd, ...)
 #undef unlink
 int mingw_unlink(const char *pathname)
 {
+	struct mingw_stat st;
+
 	/* read-only files cannot be removed */
 	chmod(pathname, 0666);
-	return unlink(pathname);
+
+	if (unlink(pathname) == 0)
+		return 0;
+
+	/*
+	 * unlink() for directory symlinks fails with ERROR_ACCESS_DENIED
+	 * (EACCES), so try rmdir() in that case.
+	 */
+	if (errno == EACCES) {
+		if (!mingw_lstat(pathname, &st) && S_ISLNK(st.st_mode))
+			return rmdir(pathname);
+		errno = EACCES;
+	}
+
+	return -1;
 }
 
 #undef strftime
