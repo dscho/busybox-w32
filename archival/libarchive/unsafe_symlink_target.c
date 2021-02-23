@@ -5,12 +5,6 @@
 #include "libbb.h"
 #include "bb_archive.h"
 
-/* symlink may not be available for WIN32, just issue a warning */
-#if ENABLE_PLATFORM_MINGW32
-# undef bb_perror_msg_and_die
-# define bb_perror_msg_and_die(...) bb_perror_msg(__VA_ARGS__)
-#endif
-
 void FAST_FUNC create_or_remember_link(llist_t **link_placeholders,
 		const char *target,
 		const char *linkname,
@@ -37,24 +31,11 @@ void FAST_FUNC create_links_from_list(llist_t *list)
 
 		target = list->data + 1 + strlen(list->data + 1) + 1;
 		if ((*list->data ? link : symlink) (target, list->data + 1)) {
-#if !ENABLE_PLATFORM_MINGW32
 			/* shared message */
 			bb_error_msg_and_die("can't create %slink '%s' to '%s'",
 				*list->data ? "hard" : "sym",
 				list->data + 1, target
 			);
-#else
-			if (!*list->data)
-				bb_error_msg("can't create %slink '%s' to '%s'",
-					"sym",
-					list->data + 1, target
-				);
-			else
-				bb_error_msg_and_die("can't create %slink '%s' to '%s'",
-					"hard",
-					list->data + 1, target
-				);
-#endif
 		}
 		list = list->link;
 	}
