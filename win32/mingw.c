@@ -158,6 +158,7 @@ int err_win_to_posix(void)
 	case ERROR_WRITE_FAULT: error = EIO; break;
 	case ERROR_WRITE_PROTECT: error = EROFS; break;
 	case ERROR_CANT_RESOLVE_FILENAME: error = ELOOP; break;
+	case ERROR_NOT_A_REPARSE_POINT: error = EINVAL; break;
 	}
 	return error;
 }
@@ -821,17 +822,21 @@ char *mingw_getcwd(char *pointer, int len)
 #undef rename
 int mingw_rename(const char *pold, const char *pnew)
 {
+	struct mingw_stat st;
 	DWORD attrs;
 
 	/*
-	 * Try native rename() first to get errno right.
+	 * For non-symlinks, try native rename() first to get errno right.
 	 * It is based on MoveFile(), which cannot overwrite existing files.
 	 */
-	if (!rename(pold, pnew))
-		return 0;
-	if (errno != EEXIST)
-		return -1;
-	if (MoveFileEx(pold, pnew, MOVEFILE_REPLACE_EXISTING))
+	if (mingw_lstat(pold, &st) || !S_ISLNK(st.st_mode)) {
+		if (!rename(pold, pnew))
+			return 0;
+		if (errno != EEXIST)
+			return -1;
+	}
+	if (MoveFileEx(pold, pnew,
+		       MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED))
 		return 0;
 	/* TODO: translate more errors */
 	if (GetLastError() == ERROR_ACCESS_DENIED &&
@@ -1056,6 +1061,41 @@ int link(const char *oldpath, const char *newpath)
 	return 0;
 }
 
+#ifndef SYMBOLIC_LINK_FLAG_DIRECTORY
+# define SYMBOLIC_LINK_FLAG_DIRECTORY (0x1)
+#endif
+#ifndef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+# define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE (0x2)
+#endif
+
+int symlink(const char *target, const char *linkpath)
+{
+	DWORD flag = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+	struct stat st;
+	DECLARE_PROC_ADDR(BOOL, CreateSymbolicLinkA, LPCSTR, LPCSTR, DWORD);
+
+	if (!INIT_PROC_ADDR(kernel32.dll, CreateSymbolicLinkA)) {
+		return -1;
+	}
+
+	if (stat(target, &st) != -1 && S_ISDIR(st.st_mode))
+		flag |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+
+ retry:
+	if (!CreateSymbolicLinkA(linkpath, target, flag)) {
+		/* Old Windows versions see 'UNPRIVILEGED_CREATE' as an invalid
+		 * parameter.  Retry without it. */
+		if ((flag & SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE) &&
+				GetLastError() == ERROR_INVALID_PARAMETER) {
+			flag &= ~SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+			goto retry;
+		}
+		errno = err_win_to_posix();
+		return -1;
+	}
+	return 0;
+}
+
 static char *normalize_ntpathA(char *buf)
 {
 	/* fix absolute path prefixes */
@@ -1082,9 +1122,16 @@ static char *resolve_symlinks(char *path)
 	char *ptr = NULL;
 	DECLARE_PROC_ADDR(DWORD, GetFinalPathNameByHandleA, HANDLE,
 						LPSTR, DWORD, DWORD);
+	char *resolve = NULL;
+
+	if (GetFileAttributesA(path) & FILE_ATTRIBUTE_REPARSE_POINT) {
+		resolve = xmalloc_follow_symlinks(path);
+		if (!resolve)
+			return NULL;
+	}
 
 	/* need a file handle to resolve symlinks */
-	h = CreateFileA(path, 0, 0, NULL, OPEN_EXISTING,
+	h = CreateFileA(resolve ?: path, 0, 0, NULL, OPEN_EXISTING,
 				FILE_FLAG_BACKUP_SEMANTICS, NULL);
 	if (h != INVALID_HANDLE_VALUE) {
 		if (!INIT_PROC_ADDR(kernel32.dll, GetFinalPathNameByHandleA)) {
@@ -1103,6 +1150,7 @@ static char *resolve_symlinks(char *path)
 	errno = err_win_to_posix();
  end:
 	CloseHandle(h);
+	free(resolve);
 	return ptr;
 }
 
@@ -1187,9 +1235,10 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz)
 			name[len] = 0;
 			name = normalize_ntpath(name);
 			len = wcslen(name);
-			if (len > bufsiz)
-				len = bufsiz;
+			if (len >= bufsiz)
+				len = bufsiz - 1;
 			if (WideCharToMultiByte(CP_ACP, 0, name, len, buf, bufsiz, 0, 0)) {
+				buf[len] = '\0';
 				return len;
 			}
 		}
@@ -1311,9 +1360,21 @@ int fcntl(int fd, int cmd, ...)
 #undef unlink
 int mingw_unlink(const char *pathname)
 {
+	int ret;
+	struct stat st;
+
 	/* read-only files cannot be removed */
 	chmod(pathname, 0666);
-	return unlink(pathname);
+
+	ret = unlink(pathname);
+	if (ret == -1 && errno == EACCES) {
+		/* a symlink to a directory needs to be removed by calling rmdir */
+		if (lstat(pathname, &st) == 0 && S_ISLNK(st.st_mode)) {
+			return rmdir(pathname);
+		}
+		errno = EACCES;
+	}
+	return ret;
 }
 
 #undef strftime
