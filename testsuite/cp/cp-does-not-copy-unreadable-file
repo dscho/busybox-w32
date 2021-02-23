@@ -1,3 +1,4 @@
+# FEATURE: CONFIG_PLATFORM_POSIX
 touch foo
 chmod a-r foo
 set +e

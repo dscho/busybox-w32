@@ -41,7 +41,7 @@ testing "find -exec exitcode 4" \
 	"1\n" \
 	"" ""
 SKIP=
-optional FEATURE_FIND_MAXDEPTH
+optional FEATURE_FIND_MAXDEPTH PLATFORM_POSIX
 testing "find / -maxdepth 0 -name /" \
 	"find / -maxdepth 0 -name /" \
 	"/\n" \
