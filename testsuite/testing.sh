@@ -35,6 +35,7 @@
 
 export FAILCOUNT=0
 export SKIP=
+export LOGPATH="$(cd "$(dirname "$0")" && pwd)/.output.$(basename "$0")"
 
 # Helper for helpers. Oh my...
 
@@ -77,6 +78,13 @@ testing()
     exit 1
   fi
 
+  exec 3>&1
+  exec 4>&2
+  exec 5>"$LOGPATH"
+  BASH_XTRACEFD=5
+  exec 1>&5
+  exec 2>&5
+
   [ -z "$DEBUG" ] || set -x
 
   if [ -n "$SKIP" ]
@@ -93,17 +101,21 @@ testing()
   $ECHO -ne "$5" | eval "$2" > actual
   RETVAL=$?
 
+  [ -z "$DEBUG" ] || set +x
+
+  exec 1>&3
+  exec 2>&4
+
   if cmp expected actual >/dev/null 2>/dev/null
   then
     echo "PASS: $NAME"
   else
+    cat "$LOGPATH"
     FAILCOUNT=$(($FAILCOUNT + 1))
     echo "FAIL: $NAME"
     [ -z "$VERBOSE" ] || diff -u expected actual
   fi
   rm -f input expected actual
-
-  [ -z "$DEBUG" ] || set +x
 
   return $RETVAL
 }

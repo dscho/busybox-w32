@@ -161,7 +161,7 @@ SKIP=
 # using directory structure from prev test...
 mkdir diff1/test
 mkfifo diff2/subdir/test
-optional FEATURE_DIFF_DIR
+optional FEATURE_DIFF_DIR MKFIFO
 testing "diff of dir and fifo" \
 	"diff -ur diff1 diff2/subdir | $TRIM_TAB" \
 "\
@@ -178,7 +178,7 @@ SKIP=
 # using directory structure from prev test...
 rmdir diff1/test
 echo >diff1/test
-optional FEATURE_DIFF_DIR
+optional FEATURE_DIFF_DIR MKFIFO
 testing "diff of file and fifo" \
 	"diff -ur diff1 diff2/subdir | $TRIM_TAB" \
 "\
@@ -194,7 +194,7 @@ SKIP=
 
 # using directory structure from prev test...
 mkfifo diff1/test2
-optional FEATURE_DIFF_DIR
+optional FEATURE_DIFF_DIR MKFIFO
 testing "diff -rN does not read non-regular files" \
 	"diff -urN diff1 diff2/subdir | $TRIM_TAB" \
 "\
