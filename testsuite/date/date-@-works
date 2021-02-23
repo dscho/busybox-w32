@@ -1,3 +1,4 @@
+# FEATURE: CONFIG_PLATFORM_POSIX
 # Tests for time_t value (unix time format)
 
 # Just before DST switched off

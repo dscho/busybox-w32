@@ -16,7 +16,7 @@ testing "od -b" \
 	"" "HELLO"
 SKIP=
 
-optional DESKTOP
+optional DESKTOP PLATFORM_POSIX
 testing "od -f" \
 	"od -f" \
 "\
