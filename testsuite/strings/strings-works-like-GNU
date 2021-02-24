@@ -1,6 +1,6 @@
 rm -f foo bar
-strings -af ../../busybox > foo
-busybox strings -af ../../busybox > bar
+strings -af "$(which busybox)" > foo
+busybox strings -af "$(which busybox)" > bar
 set +e
 test ! -f foo -a -f bar
 if [ $? = 0 ] ; then
