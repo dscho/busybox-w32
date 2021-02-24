@@ -34,7 +34,7 @@ jobs:
     - name: run testsuite
       shell: bash
       working-directory: ./testsuite
-      run: ./runtest -v
+      run: ../busybox.exe sh ./runtest -v
       env:
         DEBUG: true
         LC_ALL: C
