@@ -157,6 +157,7 @@ int err_win_to_posix(void)
 	case ERROR_WRITE_FAULT: error = EIO; break;
 	case ERROR_WRITE_PROTECT: error = EROFS; break;
 	case ERROR_CANT_RESOLVE_FILENAME: error = ELOOP; break;
+	case ERROR_NOT_A_REPARSE_POINT: error = EINVAL; break;
 	}
 	return error;
 }
