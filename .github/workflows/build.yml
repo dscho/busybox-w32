@@ -8,8 +8,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: git-for-windows/setup-git-for-windows-sdk@v0
-      with:
-        flavor: build-installers # this includes all the required tools
     - name: restrict PATH to Git for Windows' SDK (and Windows)
       shell: bash
       run: echo 'PATH=/mingw64/bin:/usr/bin/:/c/Windows/system32' >>$GITHUB_ENV
