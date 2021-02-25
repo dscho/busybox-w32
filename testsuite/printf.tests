@@ -20,8 +20,8 @@ testing "printf produces no further output 2" \
 	"" ""
 
 testing "printf repeatedly uses pattern for each argv" \
-	"${bb}printf '%s\n' foo '$HOME'" \
-	"foo\n$HOME\n" \
+	"${bb}printf '%s\n' foo 'HOME'" \
+	"foo\nHOME\n" \
 	"" ""
 
 testing "printf understands %b escaped_string" \
