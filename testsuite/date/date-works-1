@@ -48,11 +48,13 @@ test x"$hdt" = x"$dt"
 # date (GNU coreutils) 6.10 reports:
 #	date: invalid date '012311332000'
 dt=`busybox date -d 200001231133 +%c`
+test x"$SKIP_KNOWN_BUGS" = x"" &&
 test x"$dt" = x"Sun Jan 23 11:33:00 2000"
 
 # date (GNU coreutils) 6.10 reports:
 #	date: invalid date '012311332000'
 dt=`busybox date -d 200001231133.30 +%c`
+test x"$SKIP_KNOWN_BUGS" = x"" &&
 test x"$dt" = x"Sun Jan 23 11:33:30 2000"
 
 lcbbd="LC_ALL=C busybox date"
