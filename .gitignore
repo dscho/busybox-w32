@@ -12,7 +12,6 @@ Config.in
 #
 # Never ignore these
 #
-!.gitattributes
 !.github
 !.gitignore
 
