@@ -1,0 +1,3 @@
+*.txt eol=lf
+*.bc eol=lf
+*.dc eol=lf
