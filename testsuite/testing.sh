@@ -78,18 +78,18 @@ testing()
     exit 1
   fi
 
+  if [ -n "$SKIP" ]
+  then
+    echo "SKIPPED: $NAME"
+    return 0
+  fi
+
   exec 3>&1
   exec 4>&2
   exec >"$LOGPATH"
   exec 2>&1
 
   [ -z "$DEBUG" ] || set -x
-
-  if [ -n "$SKIP" ]
-  then
-    echo "SKIPPED: $NAME"
-    return 0
-  fi
 
   $ECHO -ne "$3" > expected
   $ECHO -ne "$4" > input
