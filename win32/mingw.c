@@ -107,15 +107,15 @@ const char *mingw_pathconv(const char *path)
 		if (len > PATH_MAX)
 			len = PATH_MAX;
 		else if (!len) {
-			exec_path = "C:\\";
+			exec_path = "C:/";
 			len = 2;
 		}
 
 		safe_strncpy(pseudo_root, exec_path, len + 1);
 		pseudo_root_len = len;
 		if (pseudo_root_len + 1 < PATH_MAX &&
-				pseudo_root[pseudo_root_len - 1] != '\\')
-			pseudo_root[pseudo_root_len++] = '\\';
+				pseudo_root[pseudo_root_len - 1] != '/')
+			pseudo_root[pseudo_root_len++] = '/';
 	}
 
 	result = tmp[next++];

@@ -2114,10 +2114,12 @@ maybe_single_quote(const char *s)
 static char *
 stack_add_system_drive(const char *path)
 {
-	const char *sd = need_system_drive(path);
-	char *p = growstackto(strlen(path) + 5 + (sd ? strlen(sd) : 0));
+	char *p;
 
-	strcpy(stpcpy(p, sd ?: ""), path);
+	path = mingw_pathconv(path);
+	p = growstackto(strlen(path));
+
+	strcpy(p, path);
 	return p;
 }
 #endif
