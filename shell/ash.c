@@ -14583,6 +14583,8 @@ trapcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 	while (*ap) {
 		signo = get_signum(*ap);
 		if (signo < 0) {
+			if (!strcmp(*ap, "HUP"))
+				goto next; /* ignore silently */
 			/* Mimic bash message exactly */
 			ash_msg("%s: invalid signal specification", *ap);
 			exitcode = 1;
